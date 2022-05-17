@@ -26,8 +26,8 @@ deaths_by_year_unit <-
          deaths_by_year_unit.kr)
 
 # read in deaths from total hyads exposure
-deaths_by_state_year_all <- read.fst(paste0(dir_out, "deaths_by_year_totallHyADS.fst"), as.data.table = TRUE)
-deaths_by_state_year_all_pm25 <- read.fst(paste0(dir_out, "deaths_by_year_totall_pm25_ensemble.fst"), as.data.table = TRUE)
+deaths_by_state_year_all <- read.fst(paste0(dir_out, "deaths_by_year_total_coal_pm25.fst"), as.data.table = TRUE)
+deaths_by_state_year_all_pm25 <- read.fst(paste0(dir_out, "deaths_by_year_total_pm25_ensemble.fst"), as.data.table = TRUE)
 
 ## ================================================== ##
 # give states a bin ##REMINDER--check Washington, DC!
@@ -75,7 +75,8 @@ state_bins[ ,STATE := NULL]
 # merge with unit information
 ## ================================================== ##
 # read in facility info
-info.list <- c( 'Facility.Name', 'Facility.ID..ORISPL.', 'Unit.ID', 'State')
+info.list <- c( 'Facility.Name', 'Facility.ID..ORISPL.', 'Unit.ID', 'State',
+                'Facility.Latitude',  'Facility.Longitude')
 facility_info <- fread( '~/shared_space/ci3_nsaph/LucasH/RFM_health/inputs/Coal_facilities/AMPD_Unit.csv',
                         select = info.list) %>% unique
 setnames( facility_info, 
@@ -117,7 +118,13 @@ deaths_by_unit_year_statebin <-
 deaths_by_fac_year_statebinz <- 
   deaths_and_units[, lapply( .SD, sum),
                    .SDcols = sum_cols,
-                   by = .( model, year, Facility.Name, FacID, state_facility, statebin_facility, state_zip)]
+                   by = .( model, year, Facility.Name, 
+                           FacID, state_facility, statebin_facility, 
+                           Facility.Latitude,  Facility.Longitude, state_zip)]
+deaths_by_fac_year_statebinz.pltfrm <- 
+  deaths_by_fac_year_statebinz[model == 'hyads'][,model := NULL]
+fwrite( deaths_by_fac_year_statebinz.pltfrm,
+        file.path(dir_data, "platform_data", 'pm25_facility_state.csv'))
 
 # deaths by year
 deaths_by_year <- 
@@ -286,13 +293,13 @@ save( deaths_by_fac_year_statebin_lab, deaths_by_fac_info.lab,
       deaths_by_fac_info, deaths_by_unit_year_statebin, 
       deaths_by_year, deaths_by_year_fac_statebinf, 
       deaths_by_fac_statebinf, deaths_by_statebinf, state_bins,
-      file = 'data/annual_deaths_by.RData')
+      file = 'data/cache_data/annual_deaths_by.RData')
 
 ## ================================================== ##
 # Medicare deaths/death rates 
 ## ================================================== ##
 # load in all deaths (including projected) by year
-sum_deaths_year_state <- read.fst( 'data/total_deaths_by_state_year.fst', as.data.table = TRUE)
+sum_deaths_year_state <- read.fst( 'data/cache_data/total_deaths_by_state_year.fst', as.data.table = TRUE)
 sum_deaths_year <- sum_deaths_year_state[,.( deaths.fill = sum( deaths.fill),
                                              denom.fill = sum( denom.fill)),
                                          by = year]
@@ -350,7 +357,7 @@ gg_bardeaths <-
                       end = .9,
                       guide = guide_legend( ncol = 1)) +
   geom_label_repel( data = deaths_by_fac_info.lab,#[statebin == 'Mid-Atlantic'],
-                    size = 6,
+                    size = 7,
                     seed = 123,
                     force = 1,
                     # angle = 90,
@@ -358,12 +365,13 @@ gg_bardeaths <-
                     label.padding = unit(0.3, "lines"),
                     vjust = .5,
                     xlim = c( NA, 15),
-                    ylim = c( 500, 14000),
+                    ylim = c( 500, 16000),
                     segment.size = 0.2) +
   facet_grid( statebin_lab ~ ., switch = 'y',
               scales = 'free_y', space = 'free') +
-  scale_y_continuous(expand = c(0,0)) +
-  coord_flip( ylim = c( 0, 14500), clip = 'on') + #
+  scale_y_continuous(expand = c(0,0),
+                     breaks = seq( 0, 20000, 5000)) +
+  coord_flip( ylim = c( 0, 16000), clip = 'on') + #
   # coord_cartesian( ) +   # This keeps the labels from disappearing
   theme_bw() + 
   theme( axis.text = element_text( size = 22),
@@ -374,7 +382,7 @@ gg_bardeaths <-
          legend.direction = 'horizontal',
          legend.key.size = unit( 2, 'lines'),
          legend.position = c( .9, .45),
-         legend.text = element_text( size = 18),
+         legend.text = element_text( size = 20),
          legend.title = element_blank(),
          panel.background = element_rect( fill = NA),
          panel.border = element_blank(),
@@ -390,7 +398,7 @@ gg_bardeaths <-
 
 # gg_bardeaths
 ggsave( gg_bardeaths,
-        filename = 'figures/deaths_hyads_unit_year.png',
+        filename = 'figures/deaths_coal_pm25_unit_year.png',
         height = 15, width = 20, unit = 'in')
 
 ## ================================================== ##
@@ -533,7 +541,7 @@ change_over_time.gg <-
 
 # save it
 ggsave( change_over_time.gg,
-        filename = 'figures/deaths_hyads_2facilities_year.png',
+        filename = 'figures/deaths_coal_pm25_2facilities_year.png',
         height = 5, width = 15, unit = 'in')
 
 
@@ -589,14 +597,14 @@ deaths_coal_pm.gg <-
          strip.background = element_blank(),
          strip.text = element_text( size = 18))
 ggsave( deaths_coal_pm.gg,
-        filename = 'figures/deaths_per_year_pm_hyads.png',
+        filename = 'figures/deaths_per_year_pm_coal_pm25.png',
         height = 4, width = 9, unit = 'in')
 
 
 ## ================================================== ##
 # what percent of all medicare deaths?
 ## ================================================== ##
-sum_deaths_year <- read.fst( 'data/total_deaths_by_state_year.fst', as.data.table = TRUE)
+sum_deaths_year <- read.fst( 'data/cache_data/total_deaths_by_state_year.fst', as.data.table = TRUE)
 
 medicare_deaths_by_year <- 
   sum_deaths_year[, .( deaths = sum( deaths.fill)), by = year]
@@ -612,9 +620,12 @@ deaths_all <- deaths_by_year[model == 'hyads',
 deaths_all / medicare_deaths_all
 
 # deaths in all years
+deaths_by_year[model == 'hyads' & year <= 2005, 
+                                  lapply( .SD, sum),
+                                  .SDcols = sum_cols] 
 deaths_all.2016 <- deaths_by_year[model == 'hyads' & year <= 2016, 
-                             lapply( .SD, sum),
-                             .SDcols = sum_cols] 
+                                  lapply( .SD, sum),
+                                  .SDcols = sum_cols] 
 deaths_all.2016 / medicare_deaths_all.2016
 
 # deaths in all years, PM

@@ -21,11 +21,10 @@ This repository houses code for the manuscript entitled "Coal's Toll: 22 years o
   - `04_plots.R` Code in this file creates many of the charts in figures in the manuscript.
   - `05_compare_geos_chem.R`Code in this file compares the power plant deaths calculated in this study with comperable deaths calculated using GEOS-Chem adjoint sensitivities
 - `data` Sensitive health data is not included in this repository, but all other datasets are saved here.
-  - `admissions` This subdirectory houses raw admissions data
-  - `cache_data` This subdirectory houses monthly and annual ZIP code rates of multiple health outcomes
-  - `denom`	This subdirectory houses monthly denominator files for all Medicare beneficiaries
+  - `cache_data` This subdirectory houses various ZIP code level data for input into the models. The sensitive data and large files have not been pushed to Github.
+  - `adjoint_results`	This subdirectory houses deaths attributable to each coal unit from the GEOS-Chem adjoint sensitivities modeling
   - `denom_annual` This subdirectory houses annual denominator files for all Medicare beneficiaries
-  - `denom_ffs` This subdirectory houses monthly denominator files for all fee for service beneficiaries
+  - `coalpm25_to_obs_adjustment.csv` This file contains regional and year-specific adjustment factors for HyADS-derived coal PM<sub>2.5<\sub> to regional observed sulfate concentrations
 - `figures` This directory contains figures from the manuscript
 - `results` This directory contains two files
 

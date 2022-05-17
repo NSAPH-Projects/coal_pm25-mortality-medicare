@@ -12,13 +12,13 @@ library( magrittr)
 dir_data <- 'data/' #/nfs/home/X/xwu/shared_space/ci3_xwu/National_Causal/data2016_temp/'
 dir_out <- 'results/' #/nfs/home/X/xwu/shared_space/ci3_xwu/National_Causal/data2016_temp/'
 
-aggregate_data <- read.fst( paste0(dir_data, "aggregate_data.fst"),
+aggregate_data <- read.fst( file.path(dir_data, "cache_data", "aggregate_data.fst"),
                             as.data.table = TRUE)
 
 ## ======================================================= ##
 # load hyads data
 ## ======================================================= ##
-dat_annual <- read_fst( 'data/cache_data/hyads_pm25_annual.fst',
+dat_annual <- read_fst( file.path(dir_data, "cache_data", 'hyads_pm25_annual.fst'),
                         columns = c('zip','year', 'Y1', 'Y1.adj'), as.data.table = TRUE)
 dat_annual_use <- merge(aggregate_data, dat_annual, by = c("zip", "year")) #, all.x = TRUE)
 

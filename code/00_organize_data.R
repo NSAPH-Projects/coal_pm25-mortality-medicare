@@ -151,8 +151,8 @@ dim(aggregate_data)
 # save(covariates, file = paste0(dir_data, "covariates.RData"))
 # save(aggregate_data, file = paste0(dir_data, "aggregate_data.RData"))
 
-write.fst(covariates, paste0(dir_data, "covariates.fst"))
-write.fst(aggregate_data, paste0(dir_data, "aggregate_data.fst"))
+write.fst(covariates, file.path(dir_data, "cache_data", "covariates.fst"))
+write.fst(aggregate_data, file.path(dir_data, "cache_data", "aggregate_data.fst"))
 
 ## ==================================================== ##
 # summarise key characteristics
@@ -204,6 +204,11 @@ hyads_zips_tot <- lapply( 1999:2020,
                           }) %>% rbindlist()
 setnames( hyads_zips_tot, c( 'vals.out', 'ZIP'),
           c( 'Y1', 'zip'))
+
+fwrite( hyads_zips_tot,
+        file.path(dir_data, "platform_data", 'pm25_annual_zip.csv'))
+fwrite( hyads_zips_tot,
+        file.path("~/Desktop", 'pm25_annual_zip.csv'))
 
 ## ==================================================== ##
 ## scale coal pm by observation scaling factors by region-year
@@ -257,4 +262,4 @@ hyads_zips_tot_state <- hyads_zips_tot_state[!is.na( year)]
 ## ==================================================== ##
 ## save the data
 ## ==================================================== ##
-write.fst( hyads_zips_tot_state, 'data/cache_data/hyads_pm25_annual.fst')
+write.fst( hyads_zips_tot_state, file.path(dir_data, "cache_data", 'hyads_pm25_annual.fst'))

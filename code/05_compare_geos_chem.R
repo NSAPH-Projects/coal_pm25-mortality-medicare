@@ -69,45 +69,6 @@ read.adj <- function( base.dir = 'data/adjoint_results'){
 ## ===============================================
 irene_adj <- read.adj( )[state == 'US']
 
-## =========================================================== ##
-## Read in population data, allocate to states
-#   --warning, does not work on RCE
-#   --skip to following section to read in pre-processed data
-## =========================================================== ##
-# rasterize
-p4s <- "+proj=lcc +lat_1=33 +lat_2=45 +lat_0=40 +lon_0=-97 +a=6370000 +b=6370000"
-grid_popwgt.xyz <- fread( 'data/adjoint_results/hyads_grid_population.csv')
-grid_popwgt.r <- rasterFromXYZ( grid_popwgt.xyz, crs = p4s)
-
-# as sf
-grid_popwgt.sf <- st_as_sf( rasterToPolygons( grid_popwgt.r))
-
-# get total state populations
-us_states <- st_transform( USAboundaries::us_states(), p4s)
-us_states.p <- st_interpolate_aw( grid_popwgt.sf, us_states, extensive = T)
-
-# merge back to state information
-us_states.pop <- cbind( us_states.p, us_states[!(us_states$state_name %in% c( 'Hawaii', 'Alaska', 'Puerto Rico')),])
-us_states.pop$geometry.1 <- NULL
-us_states.pop.dt <- data.table( us_states.pop)
-
-# melt to long format
-us_states.pop.dt.m <- melt( us_states.pop.dt[,.( X2006, X2011, state_abbr)],
-                            id.vars = 'state_abbr', value.name = 'pop', variable.name = 'year')
-us_states.pop.dt.m[, year := as( gsub( 'X', '', year), 'numeric')]
-
-# sum to US
-us_states.pop.dt.us <- us_states.pop.dt.m[, .( pop = sum( pop)), by = year][, state_abbr := 'US']
-us_states.pop.dt.m <- rbind( us_states.pop.dt.m, us_states.pop.dt.us)
-setnames( us_states.pop.dt.m, 'state_abbr', 'state')
-
-
-us_states.pop.dt.m <- fread( 'data/us_population_by_state_2006_2011.csv',
-                             drop = 'V1')
-
-## merge populations with adjoint
-irene_adj_pop <- merge( irene_adj, us_states.pop.dt.m, by = c( 'state', 'year'))
-
 ## ================================================== ##
 # read population data and merge with adjoint
 ## ================================================== ##
@@ -142,7 +103,7 @@ irene_adj_pop_fac <- merge( irene_adj_pop, facility_info, by = 'uID')
 ## ===============================================
 #  Do the deaths by units calculation
 ## ===============================================
-tot_deaths_by_state_year <- read.fst( 'data/total_deaths_by_state_year.fst',
+tot_deaths_by_state_year <- read.fst( 'data/cache_data/total_deaths_by_state_year.fst',
                                       as.data.table = T)
 setnames( tot_deaths_by_state_year, 'STATE', 'state')
 
@@ -162,7 +123,7 @@ irene_adj_pop_fac_tot <- merge( irene_adj_pop_fac, tot_deaths_by_state_year,
 ## ====================================================== ##
 dir_out <- 'results/'
 
-dat_year_fill <- read.fst( 'data/dat_year_fill.fst')
+dat_year_fill <- read.fst( 'data/cache_data/dat_year_fill.fst')
 num_uniq_zip <- length( unique( dat_year_fill$zip))
 
 # read in the coefficients
@@ -210,7 +171,8 @@ irene_adj_fac <- irene_adj_pop_fac_tot[, .( deaths_adj_1 = sum( deaths_adj_1),
 ## ===============================================
 #  Read in hyads death data for comparison
 ## ===============================================
-load( 'data/annual_deaths_by.RData')
+# load rdata with tables of deaths attributed to various geographies/facilities
+load( 'data/cache_data/annual_deaths_by.RData')
 
 # merge hyads death predictions with adjoint
 h_adj <- merge( irene_adj_fac, 

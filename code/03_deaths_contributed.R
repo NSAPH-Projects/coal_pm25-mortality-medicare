@@ -12,8 +12,10 @@ library( pbmcapply)
 dir_data <- 'data/' 
 dir_out <- 'results/'
 
-aggregate_data <- read.fst( paste0(dir_data, "aggregate_data.fst"),
-                            as.data.table = TRUE)
+aggregate_data <- 
+  read.fst( 
+    file.path(dir_data, "cache_data", "aggregate_data.fst"),
+    as.data.table = TRUE)
 
 # Caculate the number of death and person-time in each zip code and year
 dead_personyear <- 
@@ -60,7 +62,7 @@ dat_year_fill[ year <= 2016 | (year > 2016 & !is.na( dead)),
 # load hyads data
 ## ======================================================= ##
 dat_annual <- read_fst( 'data/cache_data/hyads_pm25_annual.fst',
-                        columns = c('zip','year', 'Y1'), 
+                        columns = c('zip','year', 'Y1', 'Y1.adj'), 
                         as.data.table = TRUE)
 
 # merge with medicare/confounders
@@ -112,13 +114,23 @@ exp(1 * betas_kr)
 ## ==================================================== ##
 ##  Read in the ZIP code spatial inputs (State variable)
 ## ==================================================== ##
-# get the common functions
-source( 'code/utilities/common_functions.R')
+# create zip code shape file reader function
+# read zcta shapefile and crosswalk
+zip_sf_reader <- function( d = direct.dat){
+    zcta_shapefile <- file.path( d, 'cb_2017_us_zcta510_500k.shp')
+
+  # zcta-ZIP crosswalk file downloaded from 'http://mcdc2.missouri.edu/data/corrlst/'
+  cw <- disperseR::crosswalk
+  zips <- st_read(zcta_shapefile)
+  setnames( zips, 'ZCTA5CE10', 'ZCTA')
+  zips <- merge( zips, cw, by = "ZCTA", all = F, allow.cartesian = TRUE)
+  
+  return( zips)
+}
 
 direct.dat <- '/nfs/home/H/henneman/shared_space/ci3_nsaph/LucasH/disperseR/main/input/zcta_500k'
-# direct.dat <- '~/Dropbox/Harvard/Manuscripts/Energy_Transitions/Data_and_code/data/gis'
 
-zips <- zip_sf_reader( direct.dat, 'RCE') %>%
+zips <- zip_sf_reader( direct.dat) %>%
   data.table()
 setnames( zips, 'ZIP', 'zip')
 
@@ -127,7 +139,7 @@ dat_year_fill <- merge( dat_year_fill,
                         zips[, .( zip, STATE)], by = 'zip', all.x = T)
 
 write.fst( dat_year_fill,
-           'data/dat_year_fill.fst')
+           'data/cache_data/dat_year_fill.fst')
 ## ====================================================== ##
 # sum deaths by state & year as input for adjoint comparison
 ## ====================================================== ##
@@ -135,7 +147,7 @@ sum_deaths_year <- dat_year_fill[, .( deaths.fill = sum( deaths.fill, na.rm = T)
                                       denom.fill = sum( denom.fill, na.rm = T)),
                                  by = .( year, STATE)]
 write.fst( sum_deaths_year,
-           'data/total_deaths_by_state_year.fst')
+           'data/cache_data/total_deaths_by_state_year.fst')
 #
 ## ====================================================== ##
 # sum all deaths
@@ -144,6 +156,7 @@ sum( dat_year_fill$deaths.fill)
 ## ====================================================== ##
 # calculate deaths avoided for all coal pm2.5
 ## ====================================================== ##
+#hyads HR
 deaths_by_year_all.hy <- 
   lapply( betas_hy,
           function( b){
@@ -154,6 +167,7 @@ deaths_by_year_all.hy <-
             deaths_by_zip.b[, beta := as.character( which( betas_hy == b))]
           }) %>% rbindlist
 
+# PM HR (from Xiao Wu Science Advances)
 deaths_by_year_all.pm <- 
   lapply( betas_pm,
           function( b){
@@ -164,6 +178,7 @@ deaths_by_year_all.pm <-
             deaths_by_zip.b[, beta := as.character( which( betas_pm == b))]
           }) %>% rbindlist
 
+# Krueski HR
 deaths_by_year_all.kr <- 
   lapply( betas_kr,
           function( b){
@@ -174,16 +189,31 @@ deaths_by_year_all.kr <-
             deaths_by_zip.b[, beta := as.character( which( betas_kr == b))]
           }) %>% rbindlist
 
+# sulfate-adjusted coal PM2.5
+deaths_by_year_all.hy_adj <- 
+  lapply( betas_hy.adj,
+          function( b){
+            deaths_by_zip.b <- 
+              dat_year_fill[, .( 
+                deaths_coef = deaths.fill / denom.fill * ( exp( b * Y1.adj) - 1) * denom.fill#,
+              ), by = .( zip, year, STATE)]
+            deaths_by_zip.b[, beta := as.character( which( betas_hy.adj == b))]
+          }) %>% rbindlist
+
+
+
 # add model labels
 deaths_by_year_all.hy[, model := 'hyads']
 deaths_by_year_all.pm[, model := 'pm25_ensemble']
 deaths_by_year_all.kr[, model := 'pm25_krewski']
+deaths_by_year_all.hy_adj[, model := 'hyads.adj']
 
 # combine into single data.table
 deaths_by_year_all <- 
   rbind( deaths_by_year_all.hy,
          deaths_by_year_all.pm,
-         deaths_by_year_all.kr)
+         deaths_by_year_all.kr,
+         deaths_by_year_all.hy_adj)
 
 # sum by state
 deaths_by_year_state_all <- 
@@ -198,8 +228,14 @@ deaths_by_year_all.c <-
 setnames( deaths_by_year_all.c, unique( deaths_by_year_state_all$beta),
           paste0( 'deaths_coef_', unique( deaths_by_year_state_all$beta)))
 
+# check sums
+deaths_by_year_all.c[ model == 'hyads', sum( deaths_coef_2)]
+deaths_by_year_all.c[ model == 'hyads.adj', sum( deaths_coef_1)]
+deaths_by_year_all.c[ model == 'hyads.adj', sum( deaths_coef_2)]
+deaths_by_year_all.c[ model == 'hyads.adj', sum( deaths_coef_3)]
+
 # save it
-write.fst( deaths_by_year_all.c, paste0(dir_out, "deaths_by_year_totallHyADS.fst"))
+write.fst( deaths_by_year_all.c, paste0(dir_out, "deaths_by_year_total_coal_pm25.fst"))
 
 ## ====================================================== ##
 # calculate deaths avoided for total pm2.5
@@ -229,8 +265,132 @@ setnames( deaths_by_year_state_all.pm25_ensemble.c,
           paste0( 'deaths_coef_', unique( deaths_by_year_state_all.pm25_ensemble$beta)))
 
 # save it
-write.fst( deaths_by_year_state_all.pm25_ensemble.c, paste0(dir_out, "deaths_by_year_totall_pm25_ensemble.fst"))
+write.fst( deaths_by_year_state_all.pm25_ensemble.c, paste0(dir_out, "deaths_by_year_total_pm25_ensemble.fst"))
 
+## ====================================================== ##
+# get filenames for unit-level coal PM2.5
+## ====================================================== ##
+# set directory structure
+disperseR.base <- '/nfs/home/H/henneman/shared_space/ci3_nsaph/LucasH/disperseR/'
+disperseR::create_dirs( disperseR.base)
 
+# define pm25 exposure directory
+exp25_dir <- paste0( exp_dir, '25_new')
+
+# get files for unit-specific hyads
+zip.units.yr <- list.files( exp25_dir,
+                            pattern = 'zips_.*byunit.*\\d{4}\\.fst',
+                            full.names = TRUE)
+
+# put together data.table for easy reference
+zip.units.yr.dt <- data.table( f = zip.units.yr,
+                               y = 1999:2020)
+## ====================================================== ##
+# do the risk assessment
+## ====================================================== ##
+# write the function
+# cuts defines number of units run at a time
+# cuts = 2 seems to work okay for 100 samples per zip
+# cuts = 10 seems to work okay for 3 samples per zip
+risk_assessmenter <- function( n, fyms, betas, cuts.n = 2){
+  print( n)
+  # message( paste( 'Mem used is', mem_used()))
+  fym <- fyms[n]
+  f <- fym$f
+  y <- fym$y
+  
+  # read in the unit file
+  hyads.in <- read_fst( f, as.data.table = T)
+  setnames( hyads.in, 'ZIP', 'zip')
+  unames <- names( hyads.in)[ !(names( hyads.in) %in% 'zip')]
+  
+  # do the risk assessment for each unit
+  if( !is.null( cuts.n)){
+    ucuts <- split( unames, ceiling( seq_along( unames)/ cuts.n))
+  } else
+    ucuts <- list( unames)
+  
+  # fill in the hyads input
+  hyads.in[, `:=` ( year = y) ] #factor( as( y, 'character')))]
+  
+  # merge with the annual data
+  hyads.in.medi <- merge( dat_year_fill, hyads.in, by = c( 'zip', 'year'))
+  hyads.in.medi.m <- melt( hyads.in.medi, id.vars = names( dat_year_fill))
+  
+  # trim down
+  hyads.in.medi.m <- hyads.in.medi.m[ deaths.fill != 0 & 
+                                        !is.na( deaths.fill)]
+  
+  # do the risk assessment for each unit
+  deaths_by_unit <- 
+    pbmclapply( 
+      ucuts,
+      function( u, hyads_medi, betas_use){
+        print( u)
+        hyads.in.medi.u <- hyads_medi[variable %in% u]
+        
+        # calculate deaths by each of the betas provided
+        deaths_by_zip_unit_year <- 
+          lapply( betas_use,
+                  function( b){
+                    deaths_by_zip_unit.b <- 
+                      hyads.in.medi.u[, .( 
+                        deaths_coef = deaths.fill / denom.fill * ( exp( b * value) - 1) * denom.fill#,
+                        # deaths_coef = deaths.fill / denom.fill * (1 - (1 / exp( b)^value)) * denom.fill#,
+                      ), by = .( zip, STATE, variable)]
+                    deaths_by_zip_unit.b[, beta := as.character( which( betas_use == b))]
+                  }) %>% rbindlist
+        
+        # sum each unit's deaths
+        out.2 <- deaths_by_zip_unit_year[, .( 
+          deaths_coef   = sum( deaths_coef, na.rm = T)),
+          by = .( variable, beta, STATE)]
+        
+        return( out.2)
+      }, 
+      hyads_medi = hyads.in.medi.m[,.( zip, STATE, deaths.fill, denom.fill, value, variable)], 
+      betas_use = betas, 
+      mc.cores = NSAPHutils::get_cpus()) %>% rbindlist
+  
+  # dcast by which beta
+  deaths_by_unit.out <- 
+    dcast( deaths_by_unit,
+           variable + STATE ~ beta,
+           value.var = 'deaths_coef')
+  setnames( deaths_by_unit.out, unique( deaths_by_unit$beta),
+            paste0( 'deaths_coef_', unique( deaths_by_unit$beta)))
+  
+  # give year and month names
+  deaths_by_unit.out[, `:=`( year = y)]
+  
+  
+  return( deaths_by_unit.out)
+}
+
+# ============================================== #
+# run the function
+# ============================================== #
+# 100gb, 10 core
+# hyads, zip-code betas
+deaths_by_year <- lapply( 1:nrow( zip.units.yr.dt), 
+                          risk_assessmenter,
+                          fyms = zip.units.yr.dt,
+                          betas = betas_hy,
+                          cuts.n = 3) %>% rbindlist
+write.fst(deaths_by_year, paste0(dir_out, "deaths_by_year_hyRR.fst"))
+
+deaths_by_year_pm <- lapply( 1:nrow( zip.units.yr.dt), 
+                             risk_assessmenter,
+                             fyms = zip.units.yr.dt,
+                             betas = betas_pm,
+                             cuts.n = 3) %>% rbindlist
+write.fst(deaths_by_year_pm, paste0(dir_out, "deaths_by_year_pmRR.fst"))
+
+deaths_by_year_kr <- lapply( 1:nrow( zip.units.yr.dt), 
+                             risk_assessmenter,
+                             fyms = zip.units.yr.dt,
+                             betas = betas_kr,
+                             cuts.n = 3) %>% rbindlist
+write.fst(deaths_by_year_kr, paste0(dir_out, "deaths_by_year_krRR.fst"))
 
 
