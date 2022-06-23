@@ -280,8 +280,9 @@ pct_emiss_death.gg <-
         y = 'Associated Medicare deaths percentile') +
   geom_abline( slope = 1, intercept = 0,
                color = 'grey80') +
-  geom_linerange( alpha = .5) +
-  geom_point( alpha = .5, size = 1) + 
+  geom_linerange( alpha = .25) +
+  geom_point( alpha = .25, size = 1) + 
+  geom_smooth( se = FALSE, alpha = .5) +
   scale_x_continuous( labels = scales::percent_format()) +
   scale_y_continuous( labels = scales::percent_format()) +
   scale_color_brewer( palette = 'Dark2',
