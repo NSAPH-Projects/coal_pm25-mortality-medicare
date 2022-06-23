@@ -3,6 +3,7 @@ library( raster)
 library( sf)
 library( fst)
 library( ggplot2)
+library( magrittr)
 ## need medicare deaths by state (and total 48 states US)
 # need for the Cox model constant hyads & PM
 
@@ -234,6 +235,73 @@ ggsave( 'figures/geos_chem_eval_region_deaths.png',
         geos_chem_eval_plot, height = 4, width = 8, 
         unit = 'in', scale = 1.75)
 
+## ===============================================
+#  ranks by GEOS-Chem & hyads
+## ===============================================
+perc.rank <- function(x) trunc(rank(x))/length(x)
+
+# how much deaths associated with 50% emissions?
+# merge facility names with facilities dataset
+load( 'data/units_coal_1997_2021.rda')
+units_all <- units_updated %>% as.data.table
+units_all[, FacID := gsub( '-.*$', '', ID) %>% as.integer()]
+facs_all <- units_all[, .( SOx = sum( SOx)),
+                      by = .( year, FacID)]
+
+deaths_by_fac_statebinf_emiss <- 
+  merge( facs_all,
+         h_adj[model == 'hyads'],
+         by = c( 'FacID', 'year')) 
+
+deaths_by_fac_statebinf_emiss[, `:=` ( SOx_pct = perc.rank( SOx),
+                                       deaths_pct_hyads = perc.rank( deaths_coef_2),
+                                       deaths_pct_adj = perc.rank( deaths_adj_2))]#,
+deaths_by_fac_statebinf_emiss.m <- 
+  melt( deaths_by_fac_statebinf_emiss,
+        id.vars = c( 'year', 'FacID', 'SOx_pct', 'statebin_facility'),
+        measure.vars = c( 'deaths_pct_hyads', 'deaths_pct_adj'))
+
+# by = statebin_facility]
+setkey( deaths_by_fac_statebinf_emiss.m, SOx_pct)
+
+
+# calculate vertical distance from 
+deaths_by_fac_statebinf_emiss.m[, `:=` ( min.plot.y = min(value, SOx_pct ),
+                                         max.plot.y = max(value, SOx_pct )),
+                                by = .( FacID, year, variable, statebin_facility)]
+
+pct_emiss_death.gg <-
+  ggplot( deaths_by_fac_statebinf_emiss.m,
+          aes( x = SOx_pct, y = value,
+               ymin = min.plot.y,
+               ymax = max.plot.y,
+               color = variable)) + 
+  labs( x = expression( SO[2]~emissions~percentile),
+        y = 'Associated Medicare deaths percentile') +
+  geom_abline( slope = 1, intercept = 0,
+               color = 'grey80') +
+  geom_linerange( alpha = .5) +
+  geom_point( alpha = .5, size = 1) + 
+  scale_x_continuous( labels = scales::percent_format()) +
+  scale_y_continuous( labels = scales::percent_format()) +
+  scale_color_brewer( palette = 'Dark2',
+                      labels = c( 'deaths_pct_hyads' = expression( HyADS~Coal~PM[2.5]),
+                                  'deaths_pct_adj' = expression( GEOS-Chem~Adjoint~PM[2.5]~Sensitivities))) +
+  facet_grid( year ~ statebin_facility) + 
+  theme_minimal() +
+  theme( axis.text = element_text( size = 12),
+         axis.text.x = element_text( angle = 30),
+         axis.title = element_text( size = 16),
+         legend.position = 'bottom',
+         legend.title = element_blank(),
+         legend.text = element_text( size = 12),
+         panel.grid.minor = element_blank(),
+         strip.text = element_text( size = 14))
+
+# save it
+ggsave( pct_emiss_death.gg,
+        filename = 'figures/deaths_emiss_adj_pct.png',
+        height = 7, width = 15, unit = 'in')
 
 
 
