@@ -199,7 +199,7 @@ deaths_year.gg <-
                size = .2,
                color = NA, #'black',
                alpha = .8) + 
-  scale_fill_brewer( name = 'Risk Ratio Source',
+  scale_fill_brewer( name = 'Relative Risk Source',
                      palette = 'Dark2',
                      labels = modnames) + 
   labs( y = 'Annual Medicare Deaths (10,000)') +
