@@ -184,7 +184,7 @@ deaths_by_statebinf <-
 # plot total deaths by year
 ## ================================================== ##
 # create labels for each model type
-modnames <- c(   'hyads' = expression( Coal~PM[2.5]~(this~study)),
+modnames <- c(   'hyads' = expression( Coal['SO2']~PM[2.5]~(this~study)),
                  'pm25_ensemble'  = expression( PM[2.5]~(Wu~et~al.*','~2020)),
                  'pm25_krewski' = expression( PM[2.5]~(Krewski~et~al.*','~2008)))
 
@@ -203,7 +203,7 @@ deaths_year.gg <-
                      palette = 'Dark2',
                      labels = modnames) + 
   labs( y = 'Annual Medicare Deaths (10,000)') +
-  coord_cartesian( ylim = c( 0, 7)) +
+  # coord_cartesian( ylim = c( 0, NULL)) +
   theme_bw() + 
   theme( axis.text = element_text( size = 12),
          axis.title.y = element_text( size = 16),
@@ -229,7 +229,7 @@ deaths_by_statebinf[, statebin_lab :=
                                                 '\n(', 
                                                 gsub( ' ', '', format( round( deaths_coef_1, -2), big.mark = ',')), 
                                                 '-', 
-                                                gsub( ' ', '', format( round( deaths_coef_2, -2), big.mark = ',')), ')')))]
+                                                gsub( ' ', '', format( round( deaths_coef_3, -2), big.mark = ',')), ')')))]
 
 # merge with statebin totals
 deaths_by_fac_year_statebin_lab <- 
@@ -600,6 +600,9 @@ ggsave( deaths_coal_pm.gg,
         filename = 'figures/deaths_per_year_pm_coal_pm25.png',
         height = 4, width = 9, unit = 'in')
 
+# fraction before 2008
+deaths_by_year_merge[ year %in% 2000:2007, sum( deaths_hyads) / sum( deaths_pm)]
+deaths_by_year_merge[ year %in% 2012:2016, sum( deaths_hyads) / sum( deaths_pm)]
 
 ## ================================================== ##
 # what percent of all medicare deaths?
@@ -621,8 +624,11 @@ deaths_all / medicare_deaths_all
 
 # deaths in all years
 deaths_by_year[model == 'hyads' & year <= 2005, 
-                                  lapply( .SD, sum),
-                                  .SDcols = sum_cols] 
+               lapply( .SD, sum),
+               .SDcols = sum_cols] 
+deaths_by_year[model == 'hyads' & year == 2020, 
+               lapply( .SD, sum),
+               .SDcols = sum_cols] 
 deaths_all.2016 <- deaths_by_year[model == 'hyads' & year <= 2016, 
                                   lapply( .SD, sum),
                                   .SDcols = sum_cols] 

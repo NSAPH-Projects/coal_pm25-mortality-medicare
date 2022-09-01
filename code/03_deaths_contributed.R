@@ -68,7 +68,8 @@ dat_annual <- read_fst( 'data/cache_data/hyads_pm25_annual.fst',
 # merge with medicare/confounders
 dat_year_fill <- merge(dat_year_fill, dat_annual, 
                        by = c("zip", "year")) #, all.x = TRUE)
-
+summary( data.table( dat_year_fill)[year == 1999])
+summary( data.table( dat_year_fill)[year == 2020])
 
 ## ====================================================== ##
 # load poisson model results
@@ -275,7 +276,7 @@ disperseR.base <- '/nfs/home/H/henneman/shared_space/ci3_nsaph/LucasH/disperseR/
 disperseR::create_dirs( disperseR.base)
 
 # define pm25 exposure directory
-exp25_dir <- paste0( exp_dir, '25_new')
+exp25_dir <- '/nfs/home/H/henneman/shared_space/ci3_nsaph/LucasH/disperseR/main/output/zips_model.lm.cv_single_poly'
 
 # get files for unit-specific hyads
 zip.units.yr <- list.files( exp25_dir,

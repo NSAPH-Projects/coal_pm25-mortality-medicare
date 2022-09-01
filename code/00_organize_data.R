@@ -189,10 +189,10 @@ disperseR.base <- '/nfs/home/H/henneman/shared_space/ci3_nsaph/LucasH/disperseR/
 disperseR::create_dirs( disperseR.base)
 
 # define pm25 exposure directory
-exp25_dir <- paste0( exp_dir, '25')
+exp25_dir <- paste0( exp_dir, '25_new')
 
-exp25_dir2 <- paste0( exp_dir, '25_new')
-zips.files.tot.yr <- list.files( exp25_dir2,
+exp25_dir2 <- '/nfs/home/H/henneman/shared_space/ci3_nsaph/LucasH/disperseR/main/output/zips_model.lm.cv_single_poly'
+zips.files.tot.yr <- list.files( exp25_dir,
                                  pattern = 'zips_.*total_\\d{4}\\.fst',
                                  full.names = TRUE)
 names( zips.files.tot.yr) <- 1999:2020

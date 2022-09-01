@@ -91,7 +91,7 @@ rm( gnm_raw_hy_adj)
 # view the coefficients
 exp(10 * Poisson['pm25_ensemble'])
 exp(10 * Poisson_hy['Y1'])
-exp(1 * Poisson_hy.adj['Y1.adj'])
+exp(10 * Poisson_hy.adj['Y1.adj'])
 
 exp( 10 * 0.02454625)
 
@@ -149,6 +149,10 @@ dat_annual_dual <-
   dat_annual_use[  dual == 1, sum( time_count)] / all_count
 
 
+
+## ==================================================== ##
+## check out biggest impacting facilities
+## ==================================================== ##
 
 
 

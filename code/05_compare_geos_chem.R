@@ -186,20 +186,38 @@ h_adj_lm <- h_adj[, .( N = .N,
                        int.se = coef( summary( lm( deaths_coef_2 ~ deaths_adj_2)))['(Intercept)','Std. Error'],
                        slo = coef( summary( lm( deaths_coef_2 ~ deaths_adj_2)))['deaths_adj_2','Estimate'],
                        slo.se = coef( summary( lm( deaths_coef_2 ~ deaths_adj_2)))['deaths_adj_2','Std. Error'],
-                       r = cor( deaths_adj_2, deaths_coef_2),
+                       r2 = cor( deaths_adj_2, deaths_coef_2) ^ 2,
                        nmb = ( 1 / sum( deaths_adj_2)) * sum( deaths_coef_2 - deaths_adj_2),
                        nme = ( 1 / sum( deaths_adj_2)) * sum( abs( deaths_coef_2 - deaths_adj_2)),
                        rmse = sqrt( ( 1 / .N) * sum( ( ( deaths_coef_2 - mean( deaths_coef_2)) - ( deaths_adj_2 - mean( deaths_adj_2))) ^ 2) ) ),
                   by = .( statebin_facility, year)]
+h_adj_us <- h_adj[, .( N = .N,
+                       int = coef( summary( lm( deaths_coef_2 ~ deaths_adj_2)))['(Intercept)','Estimate'],
+                       int.se = coef( summary( lm( deaths_coef_2 ~ deaths_adj_2)))['(Intercept)','Std. Error'],
+                       slo = coef( summary( lm( deaths_coef_2 ~ deaths_adj_2)))['deaths_adj_2','Estimate'],
+                       slo.se = coef( summary( lm( deaths_coef_2 ~ deaths_adj_2)))['deaths_adj_2','Std. Error'],
+                       r2 = cor( deaths_adj_2, deaths_coef_2)^2,
+                       nmb = ( 1 / sum( deaths_adj_2)) * sum( deaths_coef_2 - deaths_adj_2),
+                       nme = ( 1 / sum( deaths_adj_2)) * sum( abs( deaths_coef_2 - deaths_adj_2)),
+                       rmse = sqrt( ( 1 / .N) * sum( ( ( deaths_coef_2 - mean( deaths_coef_2)) - ( deaths_adj_2 - mean( deaths_adj_2))) ^ 2) ) ),
+                  by = .( year)]
 
 h_adj_lm_out <- h_adj_lm[, .( N = N,
                               Intercept = paste( sprintf( '%.1f', int), '±', sprintf( '%.0f', int.se)),
                               Slope = paste( sprintf( '%.2f', slo), '±', sprintf( '%.2f', slo.se)),
-                              R = sprintf( '%.2f', r),
+                              R2 = sprintf( '%.2f', r2),
                               NMB = scales::percent( nmb),
                               NME = scales::percent( nme),
                               RMSE = sprintf( '%.0f', rmse)),
                          by = .( statebin_facility, year)]
+h_adj_lm_out_us <- h_adj_us[, .( N = N,
+                              Intercept = paste( sprintf( '%.1f', int), '±', sprintf( '%.0f', int.se)),
+                              Slope = paste( sprintf( '%.2f', slo), '±', sprintf( '%.2f', slo.se)),
+                              R2 = sprintf( '%.2f', r2),
+                              NMB = scales::percent( nmb),
+                              NME = scales::percent( nme),
+                              RMSE = sprintf( '%.0f', rmse)),
+                         by = .( year)]
 
 # get the annual results
 sum_cols <- c( 'deaths_adj_1', 'deaths_adj_2', 'deaths_adj_3',
@@ -218,21 +236,23 @@ geos_chem_eval_plot <-
   geom_errorbar( aes( ymin = deaths_coef_1, ymax = deaths_coef_3), size = 1) +
   geom_errorbarh( aes( xmin = deaths_adj_1, xmax = deaths_adj_3), size = 1) +
   geom_smooth( formula = y ~ x, method = 'lm', se = T, fullrange = T, size = .5) +
-  labs( y = expression( HyADS~Coal~PM[2.5]), x = 'GEOS-Chem Adjoint') +
+  labs( y = expression( HyADS~Coal[SO2]~PM[2.5]), x = 'GEOS-Chem Adjoint') +
   coord_cartesian( xlim = c( .01, max( h_adj$deaths_coef_3, h_adj$deaths_adj_3)),
                    ylim = c( .01, max( h_adj$deaths_coef_3, h_adj$deaths_adj_3))) +
-  scale_x_log10( ) + 
-  scale_y_log10( ) + 
-  facet_grid( year ~ statebin_facility) + 
+  # scale_x_log10( ) + 
+  # scale_y_log10( ) + 
+  facet_grid( year ~ statebin_facility,
+              switch = 'y') + 
   theme_bw() + 
   theme( axis.text = element_text( size = 12),
-         # axis.text.x = element_text( angle = 30),
+         axis.text.x = element_text( angle = 30),
          axis.title = element_text( size = 14),
          strip.background = element_blank(),
+         strip.placement = 'outside',
          strip.text = element_text( size = 16))
 
 ggsave( 'figures/geos_chem_eval_region_deaths.png',
-        geos_chem_eval_plot, height = 4, width = 8, 
+        geos_chem_eval_plot, height = 4, width = 10, 
         unit = 'in', scale = 1.75)
 
 ## ===============================================
@@ -305,6 +325,9 @@ ggsave( pct_emiss_death.gg,
         filename = 'figures/deaths_emiss_adj_pct.png',
         height = 7, width = 15, unit = 'in')
 
+## ===============================================
+#  evaluate hyads & geos-Chem
+## ===============================================
 
 
 

@@ -1,5 +1,6 @@
 library( gnm)
 library( pbmcapply)
+library( pbapply)
 library( dplyr)
 library( data.table)
 library( fst)
@@ -48,6 +49,7 @@ bootstrap_CI.fn <-
             dat_all = dat_annual_use,
             num_zips = num_uniq_zip){
     set.seed(boots_id)
+    # print(boots_id)
     zip_sample <- 
       sample( unique( dat_all$zip),
               floor( 2 * sqrt( num_uniq_zip)), replace=T) 
