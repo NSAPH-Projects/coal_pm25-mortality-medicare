@@ -432,28 +432,41 @@ usa_region.sf <- lapply( c( na.omit( unique( state_bins$statebin_facility))),
 usa_region.sf$xlab <- c( -76, -118, -105, -75, -70, -83, -97)
 usa_region.sf$ylab <- c(  32,   50,   28,  46,  38,  49,  50)
 
+# calculate sox in million kg
+units_all[, SOx_kg := SOx * 907.185 / 1e6]
+
+# create spaital object
+units_all.sf <- st_as_sf(units_all, coords = c( 'Longitude', 'Latitude'),
+                         crs = st_crs( 'WGS84'))
+
 # sum units SO2 emissions by facility
-map_emissions <- ggplot( ) +
-  geom_sf( data = usa, 
-           aes( geometry = 'geometry'),
+map_emissions <- 
+  ggplot( ) +
+  geom_sf( data = usa,
+           # aes( geometry = 'geometry'),
            color = 'grey50',
            fill = 'white', size = .1) +
-  geom_sf( data = usa_region.sf, 
+  geom_sf( data = usa_region.sf,
            fill = NA,
+           aes( geometry = geometry),
            # aes( fill = statebin),
            color = 'black', size = .8) +
   geom_label( data = usa_region.sf,
               size = 6.5,
-              aes( label = statebin,
+              aes( label = statebin_facility,
                    x = xlab, y = ylab)) +
-  stat_summary_hex( data = units_all[Latitude > 25], 
-                    inherit.aes = F, bins = 50, drop = F,
-                    color = 'black', alpha = .8, size = .1,
-                    aes( x = Longitude, y = Latitude, z = SOx * 907.185 / 1e6)) +
+  stat_summary_hex( aes( x = Longitude, y = Latitude, z = SOx_kg),
+                    data = units_all[ Latitude > 25 & Latitude < 60,], 
+                    fun = 'sum',
+                    inherit.aes = F, bins = 40,
+                    drop = F,
+                    color = 'black', alpha = .7, size = .1,
+  ) +
   scale_fill_viridis( name = expression(paste(SO[2], ' emissions [million kg]')),
                       option = 'D',
                       direction = -1,
-                      limits = c( 0, 40),
+                      begin = .25,
+                      limits = c( 0, 1000),
                       oob = scales::squish,
                       guide = guide_colorbar( title.position='bottom',
                                               title.hjust = 0.5,
@@ -462,12 +475,18 @@ map_emissions <- ggplot( ) +
   theme( axis.text = element_blank(),
          axis.title = element_blank(),
          legend.direction = 'horizontal',
+         legend.key.width = unit( .32, 'inches'),
          legend.position = c( .17, .15),
-         legend.text = element_text( size = 16),
+         legend.text = element_text( size = 14),#, angle = 30),
          legend.title = element_text( size = 16),
          panel.grid = element_blank(),
          plot.background = element_rect( color = 'black', fill = 'white',
                                          size = .2))
+map_emissions
+
+ggsave( 'figures/emissions_hex_plot.png',
+        map_emissions,
+        height = 2.9, width = 5, unit = 'in', scale = 1.6)
 
 ## ================================================== ##
 # plot specific facilities change over time
@@ -603,6 +622,141 @@ ggsave( deaths_coal_pm.gg,
 # fraction before 2008
 deaths_by_year_merge[ year %in% 2000:2007, sum( deaths_hyads) / sum( deaths_pm)]
 deaths_by_year_merge[ year %in% 2012:2016, sum( deaths_hyads) / sum( deaths_pm)]
+
+## ================================================= ##
+#  plot total hyads
+## ================================================= ##
+# read zcta shapefile and crosswalk
+zip_sf_reader <- function( d = direct.dat,
+                           system_comp = c( 'RCE', 'Mac')){
+  system_comp <- system_comp[1]
+  # zcta file downloaded from 'ftp://ftp2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_zcta510_500k.zip'
+  if( system_comp == 'RCE'){
+    zcta_shapefile <- file.path( d, 'cb_2017_us_zcta510_500k.shp')
+  } else 
+    zcta_shapefile <- file.path( d, 'cb_2016_us_zcta510_500k.shp')
+  
+  # zcta-ZIP crosswalk file downloaded from 'http://mcdc2.missouri.edu/data/corrlst/'
+  cw <- disperseR::crosswalk
+  # cw <- fread( crosswalk_csv)
+  # make sure ZCTA's are 5 digits to merge on zcta ID
+  # cw$ZCTA <- formatC( cw$ZCTA, width = 5, format = "d", flag = "0") 
+  
+  zips <- st_read(zcta_shapefile)
+  setnames( zips, 'ZCTA5CE10', 'ZCTA')
+  zips <- merge( zips, cw, by = "ZCTA", all = F, allow.cartesian = TRUE)
+  
+  return( zips)
+}
+
+
+# direct.dat <- '/nfs/home/H/henneman/shared_space/ci3_nsaph/LucasH/disperseR/main/input/zcta_500k'
+direct.dat <- '~/Dropbox/Harvard/Manuscripts/Energy_Transitions/Data_and_code/data/gis'
+
+zips <- zip_sf_reader( direct.dat, 'Mac') %>%
+  data.table()
+setnames( zips, 'ZIP', 'zip')
+
+## CHANGE THIS ##
+# gridded hyads file location
+hyads_file_loc <- '~/Dropbox/Harvard/ARP/HyADS/hyads_longterm/exp_pm25_noint/zips_model.lm.cv_single_poly'
+
+#coordinate reference system projection string for spatial data
+p4s <- "+proj=lcc +lat_1=33 +lat_2=45 +lat_0=40 +lon_0=-97 +a=6370000 +b=6370000"
+
+# get the names of the gridded HyADS output files
+zips.files.yr <- list.files( hyads_file_loc,
+                             pattern = 'zips_pm25_total_\\d{4}\\.fst',
+                             full.names = TRUE)
+
+# read select files
+zips.dat <- lapply( zips.files.yr,
+                    function( f){
+                      year.f <- gsub( '^.*_|\\.fst', '', f)
+                      
+                      in.f <- read.fst( f, as.data.table = T)
+                      in.f[, year := year.f]
+                    }) %>% rbindlist
+
+# calculate average by year
+zips.dat[, .( mean = mean( vals.out, na.rm = TRUE),
+              X_00 = min( vals.out),
+              X_75 = quantile( vals.out, .75, na.rm = TRUE),
+              X_25 = quantile( vals.out, .25, na.rm = TRUE),
+              X_100 = max( vals.out, na.rm = TRUE)), by = year]
+
+# merge with spatial data
+zips.dat.sf <- merge( zips.dat,
+                      zips,
+                      by.x = 'ZIP', by.y = 'ZIP')
+
+# get USA dataset
+states48 <- c( state.name[!(state.name %in% c( 'Alaska', 'Hawaii'))],
+               'District of Columbia')
+# download some US data
+states <- USAboundaries::us_states()
+states <- states[states$name %in% c( states48),]
+
+# do the plpotting
+spat.gg <- ggplot( zips.dat.sf[ zips.dat.sf$year %in% c( 1999, 2006, 2013, 2020),],
+                   aes( fill = vals.out, color = vals.out)) + 
+  geom_sf( aes( geometry = geometry), color = NA) + 
+  scale_fill_gradient(high = "black",
+                      low = "plum1",
+                      breaks = c( 0, 1, 2, 3),
+                      labels = c( '0.0', '1.0', '2.0', '3.0'),
+                      na.value = NA,
+                      oob = scales::squish,
+                      limits = c( 0, 2)) +
+  scale_color_gradient(high = "black",
+                       low = "plum1",
+                       breaks = c( 0, 1, 2, 3),
+                       labels = c( '0.0', '1.0', '2.0', '3.0'),
+                       na.value = NA,
+                       oob = scales::squish,
+                       limits = c( 0, 2)) +
+  geom_sf( data = states,
+           inherit.aes = FALSE,
+           fill = NA, color = 'grey90', size = .05) +
+  labs( fill = expression(paste( 'Coal ', PM["2.5"], ', µg ', m^{"-3"}))) +
+  scale_x_continuous( expand = c( 0, 0)) +
+  scale_y_continuous( expand = c( 0, 0),
+                      breaks = 1:10) +
+  facet_wrap( . ~ year, nrow = 1, strip.position = 'bottom') +
+  theme_bw() + 
+  theme( axis.text = element_blank(),
+         axis.title = element_blank(),
+         axis.ticks = element_blank(),
+         legend.background = element_rect( color = 'black'),
+         legend.direction = 'vertical',
+         legend.position = c( .93, 2),
+         legend.text = element_text( size = 14),
+         legend.title = element_text( size = 14),
+         panel.background = element_rect( fill = 'white'),
+         panel.grid = element_blank(),
+         panel.border = element_blank(),
+         strip.background = element_blank(),
+         strip.text = element_text( size = 20))
+
+hist.gg <- ggplot( zips.dat, 
+                   aes( y = vals.out, x = year, group = year)) + 
+  geom_boxplot( size = .5) +
+  scale_y_continuous( breaks = 0:10) +
+  labs( y = expression( paste( Coal['SO2'], PM["2.5"], ', µg', m^{"-3"}))) +
+  theme_bw() + 
+  theme( axis.text = element_text( size = 16),
+         # axis.text.x = element_text( size = 20),
+         axis.title = element_text( size = 18),
+         axis.title.x = element_blank())
+
+gg_combine <- cowplot::plot_grid(hist.gg,
+                                 spat.gg,
+                                 rel_heights = c( 1.1,1),
+                                 labels = NULL, ncol = 1, 
+                                 align = 'v', axis = 'lr') 
+
+ggsave( 'figures/hyads_trends.png', gg_combine,
+        width = 14, height = 5, scale = 1.2)
 
 ## ================================================== ##
 # what percent of all medicare deaths?
