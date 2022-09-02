@@ -582,7 +582,7 @@ deaths_by_year_merge.m <-
 
 # data.table for names
 names.dt <- 
-  c(   'deaths_hyads' = expression( Coal~PM[2.5]),
+  c(   'deaths_hyads' = expression( Coal[SO2]~PM[2.5]),
        'deaths_pm'  = expression( Total~PM[2.5]),
        'pm25_krewski' = expression( PM[2.5]~(Krewski~et~al*','~2008)))
 

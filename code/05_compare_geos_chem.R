@@ -246,10 +246,10 @@ geos_chem_eval_plot <-
   theme_bw() + 
   theme( axis.text = element_text( size = 12),
          axis.text.x = element_text( angle = 30),
-         axis.title = element_text( size = 14),
+         axis.title = element_text( size = 18),
          strip.background = element_blank(),
          strip.placement = 'outside',
-         strip.text = element_text( size = 16))
+         strip.text = element_text( size = 18))
 
 ggsave( 'figures/geos_chem_eval_region_deaths.png',
         geos_chem_eval_plot, height = 4, width = 10, 
@@ -306,19 +306,21 @@ pct_emiss_death.gg <-
   scale_x_continuous( labels = scales::percent_format()) +
   scale_y_continuous( labels = scales::percent_format()) +
   scale_color_brewer( palette = 'Dark2',
-                      labels = c( 'deaths_pct_hyads' = expression( HyADS~Coal~PM[2.5]),
+                      labels = c( 'deaths_pct_hyads' = expression( HyADS~Coal[SO2]~PM[2.5]),
                                   'deaths_pct_adj' = expression( GEOS-Chem~Adjoint~PM[2.5]~Sensitivities))) +
-  facet_grid( year ~ statebin_facility) + 
+  facet_grid( year ~ statebin_facility,
+              switch = 'y') + 
   theme_minimal() +
   theme( axis.text = element_text( size = 12),
          axis.text.x = element_text( angle = 30),
          axis.title = element_text( size = 16),
-         legend.position = c( .83, -.09),
+         legend.position = c( .8, -.09),
          legend.direction = 'horizontal',
          legend.title = element_blank(),
          legend.text = element_text( size = 12),
          panel.grid.minor = element_blank(),
-         strip.text = element_text( size = 14))
+         strip.placement = 'outside',
+         strip.text = element_text( size = 16))
 
 # save it
 ggsave( pct_emiss_death.gg,
