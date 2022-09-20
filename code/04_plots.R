@@ -702,23 +702,23 @@ spat.gg <- ggplot( zips.dat.sf[ zips.dat.sf$year %in% c( 1999, 2006, 2013, 2020)
                    aes( fill = vals.out, color = vals.out)) + 
   geom_sf( aes( geometry = geometry), color = NA) + 
   scale_fill_gradient(high = "black",
-                      low = "plum1",
+                      low = "cornsilk",
                       breaks = c( 0, 1, 2, 3),
-                      labels = c( '0.0', '1.0', '2.0', '3.0'),
+                      labels = c( '0.0', '1.0', '≥2.0', '3.0'),
                       na.value = NA,
                       oob = scales::squish,
                       limits = c( 0, 2)) +
   scale_color_gradient(high = "black",
-                       low = "plum1",
+                       low = "cornsilk",
                        breaks = c( 0, 1, 2, 3),
-                       labels = c( '0.0', '1.0', '2.0', '3.0'),
+                       labels = c( '0.0', '1.0', '>2.0', '3.0'),
                        na.value = NA,
                        oob = scales::squish,
                        limits = c( 0, 2)) +
   geom_sf( data = states,
            inherit.aes = FALSE,
            fill = NA, color = 'grey90', size = .05) +
-  labs( fill = expression(paste( 'Coal ', PM["2.5"], ', µg ', m^{"-3"}))) +
+  labs( fill = expression(paste( Coal[SO2], ' ', PM["2.5"], ', µg ', m^{"-3"}))) +
   scale_x_continuous( expand = c( 0, 0)) +
   scale_y_continuous( expand = c( 0, 0),
                       breaks = 1:10) +
@@ -742,7 +742,7 @@ hist.gg <- ggplot( zips.dat,
                    aes( y = vals.out, x = year, group = year)) + 
   geom_boxplot( size = .5) +
   scale_y_continuous( breaks = 0:10) +
-  labs( y = expression( paste( Coal['SO2'], PM["2.5"], ', µg', m^{"-3"}))) +
+  labs( y = expression( paste( Coal['SO2'], ' ', PM["2.5"], ', µg', m^{"-3"}))) +
   theme_bw() + 
   theme( axis.text = element_text( size = 16),
          # axis.text.x = element_text( size = 20),
