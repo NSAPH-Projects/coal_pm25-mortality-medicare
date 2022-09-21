@@ -687,7 +687,7 @@ zips.dat[, .( mean = mean( vals.out, na.rm = TRUE),
 # merge with spatial data
 zips.dat.sf <- merge( zips.dat,
                       zips,
-                      by.x = 'ZIP', by.y = 'ZIP')
+                      by.x = 'ZIP', by.y = 'zip')
 
 # get USA dataset
 states48 <- c( state.name[!(state.name %in% c( 'Alaska', 'Hawaii'))],
@@ -717,7 +717,7 @@ spat.gg <- ggplot( zips.dat.sf[ zips.dat.sf$year %in% c( 1999, 2006, 2013, 2020)
   geom_sf( data = states,
            inherit.aes = FALSE,
            fill = NA, color = 'grey90', size = .05) +
-  labs( fill = expression(paste( Coal[SO2], ' ', PM["2.5"], ', µg ', m^{"-3"}))) +
+  labs( fill = expression(paste( Coal, ' ', PM["2.5"], ', µg ', m^{"-3"}))) +
   scale_x_continuous( expand = c( 0, 0)) +
   scale_y_continuous( expand = c( 0, 0),
                       breaks = 1:10) +
@@ -741,7 +741,7 @@ hist.gg <- ggplot( zips.dat,
                    aes( y = vals.out, x = year, group = year)) + 
   geom_boxplot( size = .5) +
   scale_y_continuous( breaks = 0:10) +
-  labs( y = expression( paste( Coal['SO2'], ' ', PM["2.5"], ', µg', m^{"-3"}))) +
+  labs( y = expression( paste( Coal, ' ', PM["2.5"], ', µg', m^{"-3"}))) +
   theme_bw() + 
   theme( axis.text = element_text( size = 16),
          # axis.text.x = element_text( size = 20),
