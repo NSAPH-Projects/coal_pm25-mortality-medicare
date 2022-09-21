@@ -184,7 +184,7 @@ deaths_by_statebinf <-
 # plot total deaths by year
 ## ================================================== ##
 # create labels for each model type
-modnames <- c(   'hyads' = expression( Coal['SO2']~PM[2.5]~(this~study)),
+modnames <- c(   'hyads' = expression( Coal~PM[2.5]~(this~study)),
                  'pm25_ensemble'  = expression( PM[2.5]~(Wu~et~al.*','~2020)),
                  'pm25_krewski' = expression( PM[2.5]~(Krewski~et~al.*','~2008)))
 
@@ -193,16 +193,15 @@ deaths_year.gg <-
           aes( x = year,
                fill = model)) + 
   geom_rect( xmin = 2017, xmax = 2020,
-             ymin = 0, ymax = 8, fill = 'grey95', color = NA) +
+             ymin = 0, ymax = 10, fill = 'grey95', color = NA) +
   geom_ribbon( aes( ymax = deaths_coef_3 / 10000,
                     ymin = deaths_coef_1 / 10000),
                size = .2,
                color = NA, #'black',
                alpha = .8) + 
-  scale_fill_brewer( name = 'Relative Risk Source',
-                     palette = 'Dark2',
+  scale_fill_brewer( palette = 'Dark2',
                      labels = modnames) + 
-  labs( y = 'Annual Medicare Deaths (10,000)') +
+  labs( y = 'Annual Excess Deaths (10,000)') +
   # coord_cartesian( ylim = c( 0, NULL)) +
   theme_bw() + 
   theme( axis.text = element_text( size = 12),
@@ -211,7 +210,7 @@ deaths_year.gg <-
          legend.position = c(.65,.8),
          legend.text = element_text( size = 12),
          legend.text.align = 0,
-         legend.title = element_text( size = 14),
+         legend.title = element_blank(),
          strip.background = element_blank(),
          strip.text = element_text( size = 18))
 
@@ -346,7 +345,7 @@ ggsave( gg_combine, file = 'figures/annual_deaths_combine.png', width = 11, heig
 gg_bardeaths <-
   ggplot( deaths_by_fac_year_statebin_lab[model == 'hyads'], #[sample(1:7000, 500)],
           aes( y = deaths_coef_2, x = FacID, label = lab)) + 
-  labs( y = 'Medicare Deaths') +
+  labs( y = 'Excess Deaths') +
   geom_col( aes( fill = yearbin), 
             color = NA, width = 1, 
             position = position_stack( reverse = T)) + 
@@ -365,13 +364,13 @@ gg_bardeaths <-
                     label.padding = unit(0.3, "lines"),
                     vjust = .5,
                     xlim = c( NA, 15),
-                    ylim = c( 500, 16000),
+                    ylim = c( 500, 17000),
                     segment.size = 0.2) +
   facet_grid( statebin_lab ~ ., switch = 'y',
               scales = 'free_y', space = 'free') +
   scale_y_continuous(expand = c(0,0),
                      breaks = seq( 0, 20000, 5000)) +
-  coord_flip( ylim = c( 0, 16000), clip = 'on') + #
+  coord_flip( ylim = c( 0, 18000), clip = 'on') + #
   # coord_cartesian( ) +   # This keeps the labels from disappearing
   theme_bw() + 
   theme( axis.text = element_text( size = 22),
@@ -460,7 +459,7 @@ map_emissions <-
                     fun = 'sum',
                     inherit.aes = F, bins = 40,
                     drop = F,
-                    color = 'black', alpha = .7, size = .1,
+                    color = 'black', alpha = .7, size = .1
   ) +
   scale_fill_viridis( name = expression(paste(SO[2], ' emissions [million kg]')),
                       option = 'D',
@@ -535,7 +534,7 @@ change_over_time.gg <-
   ggplot( largest_facilities,
           aes( x = year, y = deaths_coef_2, label = lab,
                color = factor( deaths_rank), group = as.factor( FacID))) + 
-  labs( y = 'Annual Medicare Deaths') +
+  labs( y = 'Annual Excess Deaths') +
   geom_line() + 
   geom_label_repel( data = deaths_by_fac.lab,
                     direction = 'y',
@@ -582,7 +581,7 @@ deaths_by_year_merge.m <-
 
 # data.table for names
 names.dt <- 
-  c(   'deaths_hyads' = expression( Coal[SO2]~PM[2.5]),
+  c(   'deaths_hyads' = expression( Coal~PM[2.5]),
        'deaths_pm'  = expression( Total~PM[2.5]),
        'pm25_krewski' = expression( PM[2.5]~(Krewski~et~al*','~2008)))
 
@@ -603,7 +602,7 @@ deaths_coal_pm.gg <-
                                            accuracy = 1)),
              y = -.5) +
   guides(fill = guide_legend( reverse = TRUE)) +
-  labs( y = 'Annual Medicare Deaths (10,000)') +
+  labs( y = 'Annual Excess Deaths (10,000)') +
   expand_limits( y = -.75) +
   theme_bw() + 
   theme( axis.text = element_text( size = 12),
