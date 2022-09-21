@@ -154,6 +154,11 @@ dim(aggregate_data)
 write.fst(covariates, file.path(dir_data, "cache_data", "covariates.fst"))
 write.fst(aggregate_data, file.path(dir_data, "cache_data", "aggregate_data.fst"))
 
+covariates <- 
+  read.fst( file.path(dir_data, "cache_data", "covariates.fst"), as.data.table = TRUE)
+aggregate_data <- 
+  read.fst( file.path(dir_data, "cache_data", "aggregate_data.fst"), as.data.table = TRUE)
+
 ## ==================================================== ##
 # summarise key characteristics
 ## ==================================================== ##
@@ -263,3 +268,12 @@ hyads_zips_tot_state <- hyads_zips_tot_state[!is.na( year)]
 ## save the data
 ## ==================================================== ##
 write.fst( hyads_zips_tot_state, file.path(dir_data, "cache_data", 'hyads_pm25_annual.fst'))
+
+## ==================================================== ##
+## population-weighted hyads
+## ==================================================== ##
+
+
+
+
+

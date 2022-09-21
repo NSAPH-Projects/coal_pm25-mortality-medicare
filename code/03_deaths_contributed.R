@@ -71,6 +71,11 @@ dat_year_fill <- merge(dat_year_fill, dat_annual,
 summary( data.table( dat_year_fill)[year == 1999])
 summary( data.table( dat_year_fill)[year == 2020])
 
+# calculate population-weighted hyads
+data.table( dat_year_fill)[, .( Y1.pw = sum( Y1 * denom.fill) / 
+                                  sum( denom.fill)),
+                           by = year]
+
 ## ====================================================== ##
 # load poisson model results
 ## ====================================================== ##
