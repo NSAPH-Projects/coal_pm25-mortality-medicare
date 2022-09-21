@@ -619,8 +619,9 @@ ggsave( deaths_coal_pm.gg,
         height = 4, width = 9, unit = 'in')
 
 # fraction before 2008
-deaths_by_year_merge[ year %in% 2000:2007, sum( deaths_hyads) / sum( deaths_pm)]
+deaths_by_year_merge[ year %in% 2000:2008, sum( deaths_hyads) / sum( deaths_pm)]
 deaths_by_year_merge[ year %in% 2012:2016, sum( deaths_hyads) / sum( deaths_pm)]
+deaths_by_year_merge[ , sum( deaths_pm)]
 
 ## ================================================= ##
 #  plot total hyads
@@ -882,9 +883,9 @@ gibs_musk[ year >= 2007 & year <= 2015, .( deaths_coef_1 = sum( deaths_coef_1),
 keystone <- 
   deaths_by_fac_year_statebin_lab[FacID == 3136 & 
                                     model == 'hyads']
-keystone[ year <= 2008, .( deaths_coef_1 = sum( deaths_coef_1), 
-                           deaths_coef_2 = sum( deaths_coef_2),
-                           deaths_coef_3 = sum( deaths_coef_3)), by = FacID]
-keystone[ year >= 2010, .( deaths_coef_1 = sum( deaths_coef_1), 
-                           deaths_coef_2 = sum( deaths_coef_2),
-                           deaths_coef_3 = sum( deaths_coef_3)), by = FacID]
+keystone[ year <= 2008, .( deaths_coef_1 = mean( deaths_coef_1), 
+                           deaths_coef_2 = mean( deaths_coef_2),
+                           deaths_coef_3 = mean( deaths_coef_3)), by = FacID]
+keystone[ year >= 2010, .( deaths_coef_1 = mean( deaths_coef_1), 
+                           deaths_coef_2 = mean( deaths_coef_2),
+                           deaths_coef_3 = mean( deaths_coef_3)), by = FacID]
