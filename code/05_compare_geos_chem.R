@@ -297,7 +297,7 @@ pct_emiss_death.gg <-
                ymax = max.plot.y,
                color = variable)) + 
   labs( x = expression( SO[2]~emissions~percentile),
-        y = 'Associated Medicare deaths percentile') +
+        y = 'Excess deaths percentile') +
   geom_abline( slope = 1, intercept = 0,
                color = 'grey80') +
   geom_linerange( alpha = .25) +
@@ -306,7 +306,7 @@ pct_emiss_death.gg <-
   scale_x_continuous( labels = scales::percent_format()) +
   scale_y_continuous( labels = scales::percent_format()) +
   scale_color_brewer( palette = 'Dark2',
-                      labels = c( 'deaths_pct_hyads' = expression( HyADS~Coal[SO2]~PM[2.5]),
+                      labels = c( 'deaths_pct_hyads' = expression( HyADS~Coal~PM[2.5]),
                                   'deaths_pct_adj' = expression( GEOS-Chem~Adjoint~PM[2.5]~Sensitivities))) +
   facet_grid( year ~ statebin_facility,
               switch = 'y') + 
