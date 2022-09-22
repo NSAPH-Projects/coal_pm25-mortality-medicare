@@ -364,13 +364,13 @@ gg_bardeaths <-
                     label.padding = unit(0.3, "lines"),
                     vjust = .5,
                     xlim = c( NA, 15),
-                    ylim = c( 500, 17000),
+                    ylim = c( 500, 11000),
                     segment.size = 0.2) +
   facet_grid( statebin_lab ~ ., switch = 'y',
               scales = 'free_y', space = 'free') +
   scale_y_continuous(expand = c(0,0),
-                     breaks = seq( 0, 20000, 5000)) +
-  coord_flip( ylim = c( 0, 18000), clip = 'on') + #
+                     breaks = seq( 0, 20000, 2500)) +
+  coord_flip( ylim = c( 0, 11000), clip = 'on') + #
   # coord_cartesian( ) +   # This keeps the labels from disappearing
   theme_bw() + 
   theme( axis.text = element_text( size = 22),
@@ -621,6 +621,7 @@ ggsave( deaths_coal_pm.gg,
 # fraction before 2008
 deaths_by_year_merge[ year %in% 2000:2008, sum( deaths_hyads) / sum( deaths_pm)]
 deaths_by_year_merge[ year %in% 2012:2016, sum( deaths_hyads) / sum( deaths_pm)]
+deaths_by_year_merge[ , sum( deaths_hyads) / sum( deaths_pm)]
 deaths_by_year_merge[ , sum( deaths_pm)]
 
 ## ================================================= ##
@@ -779,7 +780,7 @@ deaths_all / medicare_deaths_all
 # deaths in all years
 deaths_by_year[model == 'hyads' & year <= 2005, 
                lapply( .SD, sum),
-               .SDcols = sum_cols] 
+               .SDcols = sum_cols]# / length( 1999:2005)
 deaths_by_year[model == 'hyads' & year == 2020, 
                lapply( .SD, sum),
                .SDcols = sum_cols] 

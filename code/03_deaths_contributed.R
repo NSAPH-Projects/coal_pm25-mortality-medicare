@@ -117,6 +117,8 @@ exp(1 * betas_hy)
 exp(1 * betas_hy.adj)
 exp(1 * betas_kr)
 
+( exp(1 * betas_hy) - 1 ) / ( exp(1 * betas_pm) - 1)
+
 ## ==================================================== ##
 ##  Read in the ZIP code spatial inputs (State variable)
 ## ==================================================== ##
@@ -326,7 +328,7 @@ risk_assessmenter <- function( n, fyms, betas, cuts.n = 2){
   # trim down
   hyads.in.medi.m <- hyads.in.medi.m[ deaths.fill != 0 & 
                                         !is.na( deaths.fill)]
-  
+  # print( hyads.in.medi.m)
   # do the risk assessment for each unit
   deaths_by_unit <- 
     pbmclapply( 
