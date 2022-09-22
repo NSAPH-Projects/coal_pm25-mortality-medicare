@@ -197,7 +197,7 @@ disperseR::create_dirs( disperseR.base)
 exp25_dir <- paste0( exp_dir, '25_new')
 
 exp25_dir2 <- '/nfs/home/H/henneman/shared_space/ci3_nsaph/LucasH/disperseR/main/output/zips_model.lm.cv_single_poly'
-zips.files.tot.yr <- list.files( exp25_dir,
+zips.files.tot.yr <- list.files( exp25_dir2,
                                  pattern = 'zips_.*total_\\d{4}\\.fst',
                                  full.names = TRUE)
 names( zips.files.tot.yr) <- 1999:2020
@@ -268,7 +268,15 @@ hyads_zips_tot_state <- hyads_zips_tot_state[!is.na( year)]
 ## save the data
 ## ==================================================== ##
 write.fst( hyads_zips_tot_state, file.path(dir_data, "cache_data", 'hyads_pm25_annual.fst'))
-
+hyads_zips_tot_state <- 
+  read.fst(  file.path(dir_data, "cache_data", 'hyads_pm25_annual.fst'),
+             as.data.table = TRUE)
+summary( hyads_zips_tot_state[year == 1999])
+summary( hyads_zips_tot_state[, Y1.adj])
+summary( hyads_zips_tot_state[, Y1])
+mean( hyads_zips_tot_state[, Y1.adj], na.rm = T)
+mean( hyads_zips_tot_state[, Y1], na.rm = T)
+sd( hyads_zips_tot_state[, Y1], na.rm = T)
 ## ==================================================== ##
 ## population-weighted hyads
 ## ==================================================== ##
