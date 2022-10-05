@@ -131,6 +131,22 @@ deaths_by_year <-
   deaths_and_units[, lapply( .SD, sum),
                    .SDcols = sum_cols,
                    by = .( model, year)]
+deaths_by_year.present <- 
+  deaths_by_year[, .( deaths = 
+                        paste( 
+                          format(signif( deaths_coef_2, 2), big.mark=","),
+                          ' (',  
+                          format(signif( deaths_coef_1, 2), big.mark=","),
+                          '-', 
+                          format(signif( deaths_coef_3, 2), big.mark=","), ')',
+                          sep = ''
+                        )),
+                 by = .( model, year)] %>%
+  dcast( year ~ model, 
+          value.var = 'deaths',
+        variable.name = '')
+fwrite( deaths_by_year.present,
+        file.path(dir_data, "platform_data", 'deaths_by_year.csv'))
 
 # deaths by year calculated with all HyADS
 deaths_by_year_all <- 
@@ -535,19 +551,19 @@ change_over_time.gg <-
           aes( x = year, y = deaths_coef_2, label = lab,
                color = factor( deaths_rank), group = as.factor( FacID))) + 
   labs( y = 'Annual Excess Deaths') +
-  geom_line() + 
-  geom_label_repel( data = deaths_by_fac.lab,
+  geom_line( size = 2) + 
+  geom_text_repel( data = deaths_by_fac.lab,
                     direction = 'y',
                     xlim = c( NA, 1999),
                     hjust = 0,
-                    size = 3,
+                    size = 4,
                     x = 1999) +
   scale_color_viridis( discrete = TRUE,
                        begin = .2,
                        end = .8) + 
   facet_wrap(  . ~ statebin_facility,
                nrow = 2) + 
-  scale_x_continuous( limits = c( 1987, NA),
+  scale_x_continuous( limits = c( 1980, NA),
                       breaks = seq( 2000, 2020, 10),
                       minor_breaks = seq( 2000, 2020, 5)) +
   theme_minimal() +
@@ -808,6 +824,7 @@ deaths_by_year[model == 'hyads' & year < 2009,
 
 dim( deaths_by_fac_statebinf[deaths_coef_2 > 5000])
 dim( deaths_by_fac_statebinf[deaths_coef_2 > 1000])
+deaths_by_fac_statebinf[deaths_coef_2 > 500 & statebin_facility == 'West']
 
 # how much deaths associated with 50% emissions?
 # merge facility names with facilities dataset
