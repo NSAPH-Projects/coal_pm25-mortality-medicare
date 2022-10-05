@@ -219,6 +219,9 @@ h_adj_lm_out_us <- h_adj_us[, .( N = N,
                               RMSE = sprintf( '%.0f', rmse)),
                          by = .( year)]
 
+rbind( h_adj_lm_out_us,
+       h_adj_lm_out, fill = T)
+
 # get the annual results
 sum_cols <- c( 'deaths_adj_1', 'deaths_adj_2', 'deaths_adj_3',
                'deaths_coef_1', 'deaths_coef_2', 'deaths_coef_3')
