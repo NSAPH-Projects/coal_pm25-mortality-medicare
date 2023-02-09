@@ -9,7 +9,7 @@ library( magrittr)
 ## ======================================================= ##
 #  load Xiao's data
 ## ======================================================= ##
-dir_data <- 'data/' #/nfs/home/X/xwu/shared_space/ci3_xwu/National_Causal/data2016_temp/'
+dir_data <- 'data/data' #/nfs/home/X/xwu/shared_space/ci3_xwu/National_Causal/data2016_temp/'
 dir_out <- 'results/' #/nfs/home/X/xwu/shared_space/ci3_xwu/National_Causal/data2016_temp/'
 
 aggregate_data <- read.fst( file.path(dir_data, "cache_data", "aggregate_data.fst"),
@@ -33,11 +33,15 @@ dat_annual_use <- merge(aggregate_data, dat_annual, by = c("zip", "year")) #, al
 # clean house
 rm(list = c("aggregate_data", "dat_annual"))
 
+# calculate portion of PM that is not coal PM
+dat_annual_use[, pm_not_coalPM := pm25_ensemble - Y1]
+
 ## ======================================================= ##
 # run xiao's model
 # https://github.com/wxwx1993/National_Causal/blob/master/statistical_models.R
 ## ======================================================= ##
 # Cox-equvalent conditional Poisson Regression
+## PM-only model
 gnm_raw <- 
   gnm(dead ~ pm25_ensemble +
         mean_bmi + smoke_rate + hispanic + pct_blk +
@@ -53,7 +57,9 @@ gnm_raw <-
 # save only the summaries, clear large object
 Poisson <- coef(gnm_raw)
 rm( gnm_raw)
+gc()
 
+## HyADS-only model
 gnm_raw_hy <- 
   gnm(dead ~ Y1 +
         mean_bmi + smoke_rate + hispanic + pct_blk +
@@ -69,9 +75,10 @@ gnm_raw_hy <-
 # save only the summaries, clear large object
 Poisson_hy <- coef(gnm_raw_hy)
 rm( gnm_raw_hy)
+gc()
 
 # model just based on hyads adjusted to sulfate
-gnm_raw_hy_adj <- 
+gnm_raw_hy.adj <- 
   gnm(dead ~ Y1.adj +
         mean_bmi + smoke_rate + hispanic + pct_blk +
         medhouseholdincome + medianhousevalue +
@@ -85,23 +92,294 @@ gnm_raw_hy_adj <-
       family = poisson(link = "log"))
 
 # save only the summaries, clear large object
-Poisson_hy.adj <- coef( gnm_raw_hy_adj)
-rm( gnm_raw_hy_adj)
+Poisson_hy.adj <- coef( gnm_raw_hy.adj)
+rm( gnm_raw_hy.adj)
+gc()
 
+## HyADS model adjusted by [total PM - coal PM], 2003 and earlier
+gnm_raw_hy_early <- 
+  gnm(dead ~ Y1 + 
+        mean_bmi + smoke_rate + hispanic + pct_blk +
+        medhouseholdincome + medianhousevalue +
+        poverty + education + popdensity + pct_owner_occ +
+        summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
+        as.factor(year) + as.factor(region) +
+        offset(log(time_count)),
+      eliminate = (as.factor(sex):as.factor(race):as.factor(dual):as.factor(entry_age_break):as.factor(followup_year)),
+      data = dat_annual_use[ year <= 2003],
+      family = poisson(link = "log"))
+
+# save only the summaries, clear large object
+Poisson_hy_early <- coef(gnm_raw_hy_early)
+rm( gnm_raw_hy_early)
+gc()
+
+## HyADS model adjusted by [total PM - coal PM], 2004-2007
+gnm_raw_hy_mid <- 
+  gnm(dead ~ Y1 + 
+        mean_bmi + smoke_rate + hispanic + pct_blk +
+        medhouseholdincome + medianhousevalue +
+        poverty + education + popdensity + pct_owner_occ +
+        summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
+        as.factor(year) + as.factor(region) +
+        offset(log(time_count)),
+      eliminate = (as.factor(sex):as.factor(race):as.factor(dual):as.factor(entry_age_break):as.factor(followup_year)),
+      data = dat_annual_use[ year >= 2004 & year <= 2007],
+      family = poisson(link = "log"))
+
+# save only the summaries, clear large object
+Poisson_hy_mid <- coef(gnm_raw_hy_mid)
+rm( gnm_raw_hy_mid)
+gc()
+
+## HyADS model adjusted by [total PM - coal PM], 2008 and later
+gnm_raw_hy_late <- 
+  gnm(dead ~ Y1 + 
+        mean_bmi + smoke_rate + hispanic + pct_blk +
+        medhouseholdincome + medianhousevalue +
+        poverty + education + popdensity + pct_owner_occ +
+        summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
+        as.factor(year) + as.factor(region) +
+        offset(log(time_count)),
+      eliminate = (as.factor(sex):as.factor(race):as.factor(dual):as.factor(entry_age_break):as.factor(followup_year)),
+      data = dat_annual_use[ year >= 2008],
+      family = poisson(link = "log"))
+
+# save only the summaries, clear large object
+Poisson_hy_late <- coef(gnm_raw_hy_late)
+rm( gnm_raw_hy_late)
+gc()
+
+## HyADS-only model, only at ZIPs with non-missing PM
+gnm_raw_hy_pmmissing <- 
+  gnm(dead ~ Y1 +
+        mean_bmi + smoke_rate + hispanic + pct_blk +
+        medhouseholdincome + medianhousevalue +
+        poverty + education + popdensity + pct_owner_occ +
+        summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
+        as.factor(year) + as.factor(region) +
+        offset(log(time_count)),
+      eliminate = (as.factor(sex):as.factor(race):as.factor(dual):as.factor(entry_age_break):as.factor(followup_year)),
+      data = dat_annual_use[!is.na( pm25_ensemble)],
+      family = poisson(link = "log"))
+
+# save only the summaries, clear large object
+Poisson_hy_pmmissing <- coef(gnm_raw_hy_pmmissing)
+rm( gnm_raw_hy_pmmissing)
+gc()
+
+## ====================================================
+#  adjusted models - total PM
+## ====================================================
+## HyADS model adjusted by total PM
+gnm_raw_hy_pm <- 
+  gnm(dead ~ Y1 + pm25_ensemble +
+        mean_bmi + smoke_rate + hispanic + pct_blk +
+        medhouseholdincome + medianhousevalue +
+        poverty + education + popdensity + pct_owner_occ +
+        summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
+        as.factor(year) + as.factor(region) +
+        offset(log(time_count)),
+      eliminate = (as.factor(sex):as.factor(race):as.factor(dual):as.factor(entry_age_break):as.factor(followup_year)),
+      data = dat_annual_use,
+      family = poisson(link = "log"))
+
+# save only the summaries, clear large object
+Poisson_hy_pm <- coef(gnm_raw_hy_pm)
+rm( gnm_raw_hy_pm)
+gc()
+
+# model just based on hyads adjusted to sulfate with pm adjustment
+gnm_raw_hy.adj_pm <- 
+  gnm(dead ~ Y1.adj + pm25_ensemble +
+        mean_bmi + smoke_rate + hispanic + pct_blk +
+        medhouseholdincome + medianhousevalue +
+        poverty + education + popdensity + pct_owner_occ +
+        summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
+        as.factor(year) +
+        as.factor(region) +
+        offset(log(time_count)),
+      eliminate = (as.factor(sex):as.factor(race):as.factor(dual):as.factor(entry_age_break):as.factor(followup_year)),
+      data = dat_annual_use,
+      family = poisson(link = "log"))
+
+# save only the summaries, clear large object
+Poisson_hy.adj_pm <- coef( gnm_raw_hy.adj_pm)
+rm( gnm_raw_hy.adj_pm)
+gc()
+
+## ====================================================
+#  adjusted models - [total PM - coal PM]
+## ====================================================
+## HyADS model adjusted by [total PM - coal PM]
+gnm_raw_hy_dpm <- 
+  gnm(dead ~ Y1 + pm_not_coalPM +
+        mean_bmi + smoke_rate + hispanic + pct_blk +
+        medhouseholdincome + medianhousevalue +
+        poverty + education + popdensity + pct_owner_occ +
+        summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
+        as.factor(year) + as.factor(region) +
+        offset(log(time_count)),
+      eliminate = (as.factor(sex):as.factor(race):as.factor(dual):as.factor(entry_age_break):as.factor(followup_year)),
+      data = dat_annual_use,
+      family = poisson(link = "log"))
+
+# save only the summaries, clear large object
+Poisson_hy_dpm <- coef(gnm_raw_hy_dpm)
+rm( gnm_raw_hy_dpm)
+gc()
+
+## HyADS model adjusted by [total PM - coal PM], 2003 and earlier
+gnm_raw_hy_dpm_early <- 
+  gnm(dead ~ Y1 + pm_not_coalPM +
+        mean_bmi + smoke_rate + hispanic + pct_blk +
+        medhouseholdincome + medianhousevalue +
+        poverty + education + popdensity + pct_owner_occ +
+        summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
+        as.factor(year) + as.factor(region) +
+        offset(log(time_count)),
+      eliminate = (as.factor(sex):as.factor(race):as.factor(dual):as.factor(entry_age_break):as.factor(followup_year)),
+      data = dat_annual_use[ year <= 2003],
+      family = poisson(link = "log"))
+
+# save only the summaries, clear large object
+Poisson_hy_dpm_early <- coef(gnm_raw_hy_dpm_early)
+rm( gnm_raw_hy_dpm_early)
+gc()
+
+## HyADS model adjusted by [total PM - coal PM], 2004-2007
+gnm_raw_hy_dpm_mid <- 
+  gnm(dead ~ Y1 + pm_not_coalPM +
+        mean_bmi + smoke_rate + hispanic + pct_blk +
+        medhouseholdincome + medianhousevalue +
+        poverty + education + popdensity + pct_owner_occ +
+        summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
+        as.factor(year) + as.factor(region) +
+        offset(log(time_count)),
+      eliminate = (as.factor(sex):as.factor(race):as.factor(dual):as.factor(entry_age_break):as.factor(followup_year)),
+      data = dat_annual_use[ year >= 2004 & year <= 2007],
+      family = poisson(link = "log"))
+
+# save only the summaries, clear large object
+Poisson_hy_dpm_mid <- coef(gnm_raw_hy_dpm_mid)
+rm( gnm_raw_hy_dpm_mid)
+gc()
+
+## HyADS model adjusted by [total PM - coal PM], 2008 and later
+gnm_raw_hy_dpm_late <- 
+  gnm(dead ~ Y1 + pm_not_coalPM +
+        mean_bmi + smoke_rate + hispanic + pct_blk +
+        medhouseholdincome + medianhousevalue +
+        poverty + education + popdensity + pct_owner_occ +
+        summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
+        as.factor(year) + as.factor(region) +
+        offset(log(time_count)),
+      eliminate = (as.factor(sex):as.factor(race):as.factor(dual):as.factor(entry_age_break):as.factor(followup_year)),
+      data = dat_annual_use[ year >= 2008],
+      family = poisson(link = "log"))
+
+# save only the summaries, clear large object
+Poisson_hy_dpm_late <- coef(gnm_raw_hy_dpm_late)
+rm( gnm_raw_hy_dpm_late)
+gc()
+
+# model just based on hyads adjusted to sulfate with [total PM - coal PM] adjustment
+gnm_raw_hy.adj_dpm <- 
+  gnm(dead ~ Y1.adj + pm_not_coalPM +
+        mean_bmi + smoke_rate + hispanic + pct_blk +
+        medhouseholdincome + medianhousevalue +
+        poverty + education + popdensity + pct_owner_occ +
+        summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
+        as.factor(year) +
+        as.factor(region) +
+        offset(log(time_count)),
+      eliminate = (as.factor(sex):as.factor(race):as.factor(dual):as.factor(entry_age_break):as.factor(followup_year)),
+      data = dat_annual_use,
+      family = poisson(link = "log"))
+
+# save only the summaries, clear large object
+Poisson_hy.adj_dpm <- coef( gnm_raw_hy.adj_dpm)
+rm( gnm_raw_hy.adj_dpm)
+gc()
+
+## ====================================================
+#  adjusted models - [total PM - coal PM] and other pollutants
+## ====================================================
+## HyADS model adjusted by [total PM - coal PM] and other pollutants
+gnm_raw_hy_pollutants <- 
+  gnm(dead ~ Y1 + pm_not_coalPM + ozone.current_year +
+        no2.current_year + ozone_summer.current_year +
+        mean_bmi + smoke_rate + hispanic + pct_blk +
+        medhouseholdincome + medianhousevalue +
+        poverty + education + popdensity + pct_owner_occ +
+        summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
+        as.factor(year) + as.factor(region) +
+        offset(log(time_count)),
+      eliminate = (as.factor(sex):as.factor(race):as.factor(dual):as.factor(entry_age_break):as.factor(followup_year)),
+      data = dat_annual_use,
+      family = poisson(link = "log"))
+
+# save only the summaries, clear large object
+Poisson_hy_pollutants <- coef(gnm_raw_hy_pollutants)
+rm( gnm_raw_hy_pollutants)
+gc()
+
+## HyADS model adjusted by [total PM - coal PM] and other pollutants
+gnm_raw_hy_pollutants_no_o3 <- 
+  gnm(dead ~ Y1 + pm_not_coalPM + no2.current_year + 
+        mean_bmi + smoke_rate + hispanic + pct_blk +
+        medhouseholdincome + medianhousevalue +
+        poverty + education + popdensity + pct_owner_occ +
+        summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
+        as.factor(year) + as.factor(region) +
+        offset(log(time_count)),
+      eliminate = (as.factor(sex):as.factor(race):as.factor(dual):as.factor(entry_age_break):as.factor(followup_year)),
+      data = dat_annual_use,
+      family = poisson(link = "log"))
+
+# save only the summaries, clear large object
+Poisson_hy_pollutants_no_o3 <- coef(gnm_raw_hy_pollutants_no_o3)
+rm( gnm_raw_hy_pollutants_no_o3)
+gc()
+
+## ====================================================
+#  view/manipulate
+## ====================================================
 # view the coefficients
-exp(10 * Poisson['pm25_ensemble'])
-exp(10 * Poisson_hy['Y1'])
-exp(10 * Poisson_hy.adj['Y1.adj'])
+exp(1 * Poisson['pm25_ensemble'])
+exp(1 * Poisson_hy['Y1'])
+exp(1 * c( Poisson_hy_pm['Y1'], Poisson_hy_pm['pm25_ensemble']))
+exp(1 * c( Poisson_hy_dpm['Y1'], Poisson_hy_dpm['pm_not_coalPM']))
+exp(1 * c( Poisson_hy_dpm_early['Y1'], Poisson_hy_dpm_early['pm_not_coalPM']))
+exp(1 * Poisson_hy_pmmissing['Y1'])
+exp(1 * Poisson_hy.adj['Y1.adj'])
+exp(1 * c( Poisson_hy.adj_pm['Y1.adj'], Poisson_hy.adj_pm['pm25_ensemble']))
+exp(1 * c( Poisson_hy_pollutants['Y1'], Poisson_hy_pollutants['pm_not_coalPM'], 
+           Poisson_hy_pollutants['no2.current_year'], Poisson_hy_pollutants['ozone_summer.current_year']))
 
-exp( 10 * 0.02454625)
+
 
 # save the coefficients as data.table
-poisson_coefs <- rbind( Poisson['pm25_ensemble'],
-                        Poisson_hy['Y1'],
-                        Poisson_hy.adj['Y1.adj']) %>%
-  as.data.table
-setnames( poisson_coefs, 'pm25_ensemble', 'Estimate')
-poisson_coefs[, model := c( 'pm25_ensemble', 'hyads', 'hyads.adj')]
+poisson_coefs_vec <- 
+  c( pm25_ensemble   = unname( Poisson['pm25_ensemble']),
+     Y1 =              unname( Poisson_hy['Y1']),
+     Y1_early =        unname( Poisson_hy_early['Y1']),
+     Y1_mid   =        unname( Poisson_hy_mid['Y1']),
+     Y1_late =         unname( Poisson_hy_late['Y1']),
+     Y1_pm =           unname( Poisson_hy_pm['Y1']),
+     Y1_dpm =          unname( Poisson_hy_dpm['Y1']),
+     Y1_dpm_early =    unname( Poisson_hy_dpm_early['Y1']),
+     Y1_dpm_mid   =    unname( Poisson_hy_dpm_mid['Y1']),
+     Y1_dpm_late =     unname( Poisson_hy_dpm_late['Y1']),
+     Y1_pollutants =   unname( Poisson_hy_pollutants['Y1']),
+     Y1_pollutants_no_o3=unname( Poisson_hy_pollutants_no_o3['Y1']),
+     hyads.adj =       unname( Poisson_hy.adj['Y1.adj']),
+     hyads.adj_pm =    unname( Poisson_hy.adj_pm['Y1.adj']),
+     hyads.adj_dpm =   unname( Poisson_hy.adj_dpm['Y1.adj']))
+
+poisson_coefs <- 
+  data.table( Estimate = poisson_coefs_vec,
+              model = names( poisson_coefs_vec))
 
 # save the coefficients
 write.csv( poisson_coefs, file = paste0(dir_out, "poisson_model_coefs.csv"))

@@ -5,8 +5,9 @@ library( ggplot2)
 library( magrittr)
 library( viridis)
 library( ggrepel)
+library( ggpattern)
 
-dir_data <- 'data/' 
+dir_data <- 'data/data' 
 dir_out <- 'results/'
 
 ## ================================================== ##
@@ -77,7 +78,7 @@ state_bins[ ,STATE := NULL]
 # read in facility info
 info.list <- c( 'Facility.Name', 'Facility.ID..ORISPL.', 'Unit.ID', 'State',
                 'Facility.Latitude',  'Facility.Longitude')
-facility_info <- fread( '~/shared_space/ci3_nsaph/LucasH/RFM_health/inputs/Coal_facilities/AMPD_Unit.csv',
+facility_info <- fread( file.path( dir_data, 'AMPD_Unit.csv'),
                         select = info.list) %>% unique
 setnames( facility_info, 
           c( 'Facility.ID..ORISPL.', 'Unit.ID'), 
@@ -143,8 +144,8 @@ deaths_by_year.present <-
                         )),
                  by = .( model, year)] %>%
   dcast( year ~ model, 
-          value.var = 'deaths',
-        variable.name = '')
+         value.var = 'deaths',
+         variable.name = '')
 fwrite( deaths_by_year.present,
         file.path(dir_data, "platform_data", 'deaths_by_year.csv'))
 
@@ -232,6 +233,48 @@ deaths_year.gg <-
 
 ggsave( deaths_year.gg,
         filename = 'figures/deaths_per_year.png',
+        height = 4, width = 8, unit = 'in')
+
+## ================================================== ##
+# plot total deaths by year sensitivities
+## ================================================== ##
+# create labels for each model type
+modnames.s <- c( 'Constant deaths & death rates' = expression( Change~from~coal~PM[2.5]),
+                 'Constant coal PM2.5'  = expression( Change~from~deaths~and~death~rates))
+
+deaths_by_year_sensitivities.c <- fread( paste0(dir_out, "deaths_by_year_sensitivities.csv"))
+
+
+deaths_year.gg.sens <-
+  ggplot( deaths_by_year_sensitivities.c,
+          aes( x = year,
+               linetype = case)) + 
+  geom_rect( xmin = 2017, xmax = 2020,
+             ymin = -10, ymax = 10, fill = 'grey95', color = NA) +
+  geom_hline( yintercept = 0) +
+  geom_line( aes( y = deaths_coef_2_diff),
+             size = 1.25,
+             alpha = .8) + 
+  scale_y_continuous( labels = scales::percent) +
+  scale_linetype_manual( labels = modnames.s,
+                         values = c( 'solid', 'dotted')) + 
+  labs( y = 'Annual Excess Deaths Change from 1999 (%)') +
+  # coord_cartesian( ylim = c( 0, NULL)) +
+  theme_bw() + 
+  theme( axis.text = element_text( size = 12),
+         axis.title.y = element_text( size = 12),
+         axis.title.x = element_blank(),
+         legend.key.width = unit( 1, 'in'),
+         legend.position = c(.3,.13),
+         legend.text = element_text( size = 12),
+         legend.text.align = 0,
+         legend.title = element_blank(),
+         strip.background = element_blank(),
+         strip.text = element_text( size = 18))
+deaths_year.gg.sens
+
+ggsave( deaths_year.gg.sens,
+        filename = 'figures/deaths_per_year_sensitivity.png',
         height = 4, width = 8, unit = 'in')
 
 ## ================================================== ##
@@ -553,11 +596,11 @@ change_over_time.gg <-
   labs( y = 'Annual Excess Deaths') +
   geom_line( size = 2) + 
   geom_text_repel( data = deaths_by_fac.lab,
-                    direction = 'y',
-                    xlim = c( NA, 1999),
-                    hjust = 0,
-                    size = 4,
-                    x = 1999) +
+                   direction = 'y',
+                   xlim = c( NA, 1999),
+                   hjust = 0,
+                   size = 4,
+                   x = 1999) +
   scale_color_viridis( discrete = TRUE,
                        begin = .2,
                        end = .8) + 
@@ -814,6 +857,89 @@ deaths_all.kr <- deaths_by_year[model == 'pm25_krewski',
                                 .SDcols = sum_cols] 
 deaths_all.wu / medicare_deaths_all
 deaths_all.kr / medicare_deaths_all
+
+
+## ====================================================== ##
+# plots of sensitivity analysis coefficients
+## ====================================================== ##
+# this is calculated in 03_deaths_contributed.R
+num_uniq_zip <- 34983
+
+# read in the coefficients
+poisson_coefs <- fread( paste0(dir_out, "poisson_model_coefs.csv"))
+
+# read the confidence interval dataset
+# loads the object bootstrap_CI
+load( paste0(dir_out, "loglinear_coefs_boots.RData"))
+
+# vector of model names used in estimates and ci calc's
+poisson_coefs[, model_names := gsub( 'Y1', 'hyads', model)]
+poisson_coefs <- poisson_coefs[c( 1:10, 14, 11:13)]
+
+# Add descriptors
+poisson_coefs[, `:=` (descriptor1 = c( 'PM', 
+                                       rep( 'Coal~PM["2.5"]~with~no~additional~adjustment', 4),
+                                       'Coal~PM["2.5"]~adjusted~by~total~PM["2.5"]',
+                                       rep( 'Coal~PM["2.5"]~adjusted~by~non-coal~PM["2.5"]', 4),
+                                       'Coal~PM["2.5"]~adjusted~by~non-coal~PM["2.5"]*","~O["3"]*","~and~NO["2"]',
+                                       rep( 'Sulfate-corrected~coal~PM["2.5"]', 3)),
+                      descriptor2 = c( '2000-2016',
+                                       '1999-2016', '1999-2003', '2004-2007', '2008-2016',
+                                       '2000-2016', '2000-2016',
+                                       '1999-2003', '2004-2007', '2008-2016',
+                                       '2000-2016',
+                                       'No~additional~adjustment~(1999-2016)', 
+                                       'Adjusted~by~total~PM["2.5"]~(2000-2016)', 
+                                       'Adjusted~by~non-coal~PM["2.5"]~(2000-2016)'),
+                      descriptor3 = c( 'PM',
+                                       rep( 'coalPM', 10),
+                                       rep( 'coalPM.adj', 3))) ]
+
+poisson_coefs[, `:=` (descriptor1 = factor( descriptor1, levels = unique( descriptor1)),
+                      descriptor2 = factor( descriptor2, levels = rev( unique( descriptor2))),
+                      descriptor3 = factor( descriptor3, levels = rev( unique( descriptor3))))]
+
+# function to calculate CIs
+CI_calc <- 
+  function( estimate, mod, highlow){
+    
+    vec_boots <- unlist( bootstrap_CI[, ..mod])
+    
+    ci <- 1.96 * sd( vec_boots) *
+      sqrt( 2 * sqrt( num_uniq_zip)) / sqrt(num_uniq_zip)
+    
+    if( highlow == 'high')
+      return( estimate + ci)
+    else
+      return( estimate - ci)
+  }
+
+# create data table of central estimates and CI's
+poisson_coefs[, `:=` (ci_low  = CI_calc( Estimate, model_names, 'low'),
+                      ci_high = CI_calc( Estimate, model_names, 'high')), by = model_names]
+
+#create the plot
+coef_ci.gg <-
+  ggplot( poisson_coefs[ descriptor1 != 'PM'],
+          aes( y = descriptor2,
+               x = exp( Estimate), xmin = exp( ci_low), xmax = exp( ci_high)#,
+               # shape = descriptor3, linetype = descriptor3
+          )) + 
+  scale_y_discrete( labels = scales::label_parse()) +
+  scale_x_continuous( name = expression( Risk~ratio~per~µg~m^{"-3"})) +
+  geom_vline( xintercept = 1) +
+  geom_point() + 
+  geom_errorbarh( height = 0) + 
+  ggforce::facet_col( descriptor1 ~ ., scales = "free_y", 
+                      space = "free", labeller = label_parsed) +
+  theme_minimal() + 
+  theme( axis.title.y = element_blank(),
+         axis.text = element_text( size = 12),
+         axis.title.x = element_text( size = 14),
+         strip.text = element_text( size = 14))
+
+
+coef_ci.gg 
 
 ## ================================================== ##
 # present some sums

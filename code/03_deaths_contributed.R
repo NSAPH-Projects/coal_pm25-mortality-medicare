@@ -1,3 +1,5 @@
+#renv::install("lhenneman/disperseR@dev")
+
 library( fst)
 library( data.table)
 library( gnm)
@@ -9,7 +11,7 @@ library( pbmcapply)
 ## ======================================================= ##
 #  load Xiao's data
 ## ======================================================= ##
-dir_data <- 'data/' 
+dir_data <- 'data/data' 
 dir_out <- 'results/'
 
 aggregate_data <- 
@@ -61,7 +63,7 @@ dat_year_fill[ year <= 2016 | (year > 2016 & !is.na( dead)),
 ## ======================================================= ##
 # load hyads data
 ## ======================================================= ##
-dat_annual <- read_fst( 'data/cache_data/hyads_pm25_annual.fst',
+dat_annual <- read_fst( 'data/data/cache_data/hyads_pm25_annual.fst',
                         columns = c('zip','year', 'Y1', 'Y1.adj'), 
                         as.data.table = TRUE)
 
@@ -82,7 +84,7 @@ data.table( dat_year_fill)[, .( Y1.pw = sum( Y1 * denom.fill) /
 num_uniq_zip <- length( unique( dat_year_fill$zip))
 
 # read in the coefficients
-poisson_coefs <- fread( paste0(dir_out, "poisson_model_coefs.csv"))
+poisson_coefs <- fread( paste0(dir_out, "poisson_model_coefs.csv"), drop = 'V1')
 
 # read the confidence interval dataset
 # loads the object bootstrap_CI
@@ -105,7 +107,7 @@ betas_pm <-
   poisson_coefs[ model == 'pm25_ensemble']$Estimate +
   c( -boot_beta_pm, 0, +boot_beta_pm)
 betas_hy <- 
-  poisson_coefs[ model == 'hyads']$Estimate +
+  poisson_coefs[ model == 'Y1']$Estimate +
   c( -boot_beta_hy, 0, +boot_beta_hy)
 betas_hy.adj <- 
   poisson_coefs[ model == 'hyads.adj']$Estimate +
@@ -136,7 +138,7 @@ zip_sf_reader <- function( d = direct.dat){
   return( zips)
 }
 
-direct.dat <- '/nfs/home/H/henneman/shared_space/ci3_nsaph/LucasH/disperseR/main/input/zcta_500k'
+direct.dat <- 'data/data/zcta_500k'
 
 zips <- zip_sf_reader( direct.dat) %>%
   data.table()
@@ -157,6 +159,22 @@ sum_deaths_year <- dat_year_fill[, .( deaths.fill = sum( deaths.fill, na.rm = T)
 write.fst( sum_deaths_year,
            'data/cache_data/total_deaths_by_state_year.fst')
 #
+## ====================================================== ##
+# fix deaths/rates and hyads at 1999 levels
+## ====================================================== ##
+dat_1999 <- 
+  dat_year_fill[year == 1999, .( zip, deaths.fill, denom.fill, Y1)]
+
+setnames( dat_1999,
+          c( 'deaths.fill', 'denom.fill', 'Y1'),
+          paste0( c( 'deaths.fill', 'denom.fill', 'Y1'), '_99'))
+
+dat_year_fill <- 
+  merge( dat_year_fill,
+         dat_1999,
+         by = c( 'zip'),
+         all = TRUE)
+
 ## ====================================================== ##
 # sum all deaths
 ## ====================================================== ##
@@ -274,6 +292,76 @@ setnames( deaths_by_year_state_all.pm25_ensemble.c,
 
 # save it
 write.fst( deaths_by_year_state_all.pm25_ensemble.c, paste0(dir_out, "deaths_by_year_total_pm25_ensemble.fst"))
+
+## ====================================================== ##
+# calculate deaths avoided for hyads; constant death rate or constant hyads
+## ====================================================== ##
+deaths_all.hyads_constdeath <- 
+  lapply( betas_hy,
+          function( b){
+            deaths_by_zip.b <- 
+              dat_year_fill[, .( 
+                deaths_coef = deaths.fill_99 / denom.fill_99 * ( exp( b * Y1) - 1) * denom.fill_99#,
+              ), by = .( year)]
+            deaths_by_zip.b[, beta := as.character( which( betas_hy == b))]
+          }) %>% rbindlist
+
+deaths_all.hyads_consthy <- 
+  lapply( betas_hy,
+          function( b){
+            deaths_by_zip.b <- 
+              dat_year_fill[, .( 
+                deaths_coef = deaths.fill / denom.fill * ( exp( b * Y1_99) - 1) * denom.fill#,
+              ), by = .( year)]
+            deaths_by_zip.b[, beta := as.character( which( betas_hy == b))]
+          }) %>% rbindlist
+
+# sum by year
+deaths_by_year_all.hyads_constdeath <- 
+  deaths_all.hyads_constdeath[, .( 
+    deaths_coef   = sum( deaths_coef, na.rm = T)),
+    by = .( year, beta)]
+deaths_by_year_all.hyads_consthy <- 
+  deaths_all.hyads_consthy[, .( 
+    deaths_coef   = sum( deaths_coef, na.rm = T)),
+    by = .( year, beta)]
+
+# add model label
+deaths_by_year_all.hyads_constdeath[, case := 'Constant deaths & death rates']
+deaths_by_year_all.hyads_consthy[, case := 'Constant coal PM2.5']
+
+# rbind & dcast
+deaths_by_year_sensitivities <- 
+  rbind( deaths_by_year_all.hyads_constdeath,
+         deaths_by_year_all.hyads_consthy)
+
+deaths_by_year_sensitivities.c <- 
+  dcast( deaths_by_year_sensitivities,
+         year + case ~ beta,
+         value.var = 'deaths_coef')
+setnames( deaths_by_year_sensitivities.c, 
+          unique( deaths_by_year_sensitivities$beta),
+          paste0( 'deaths_coef_', unique( deaths_by_year_sensitivities$beta)))
+
+# calculate 1999 values
+deaths_by_year_sensitivities.c_99 <- 
+  deaths_by_year_sensitivities.c[year == 1999][, year := NULL]
+setnames( deaths_by_year_sensitivities.c_99,
+          c( 'deaths_coef_1', 'deaths_coef_2', 'deaths_coef_3'),
+          c( 'deaths_coef_1_99', 'deaths_coef_2_99', 'deaths_coef_3_99'))
+deaths_by_year_sensitivities.c <- 
+  merge( deaths_by_year_sensitivities.c,
+         deaths_by_year_sensitivities.c_99,
+         by = c( 'case'))
+deaths_by_year_sensitivities.c[, `:=`( 
+  deaths_coef_1_diff = (deaths_coef_1 - deaths_coef_1_99) / deaths_coef_1_99,
+  deaths_coef_2_diff = (deaths_coef_2 - deaths_coef_2_99) / deaths_coef_2_99,
+  deaths_coef_3_diff = (deaths_coef_3 - deaths_coef_3_99) / deaths_coef_3_99
+)]
+
+# save it
+fwrite( deaths_by_year_sensitivities.c, 
+           paste0(dir_out, "deaths_by_year_sensitivities.csv"))
 
 ## ====================================================== ##
 # get filenames for unit-level coal PM2.5
