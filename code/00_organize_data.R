@@ -1,21 +1,26 @@
-#devtools::install_github( 'lhenneman/disperseR@dev')
-library( disperseR)
+# renv::init()
+# renv::install("lhenneman/disperseR@dev")
+
+# library( disperseR)
 library( fst)
 library( data.table)
 library( parallel)
-library( xgboost)
+# library( xgboost)
 library( dplyr)
 library( foreign)
 
-dir_data <- 'data/' #/nfs/home/X/xwu/shared_space/ci3_xwu/National_Causal/data2016_temp/'
+dir_data <- 'data/data' #/nfs/home/X/xwu/shared_space/ci3_xwu/National_Causal/data2016_temp/'
 dir_out <- 'results/' #/nfs/home/X/xwu/shared_space/ci3_xwu/National_Causal/data2016_temp/'
 
 ## ==================================================== ##
 ##  Read in covariates data
 ## ==================================================== ##
-files.mort <- list.files("/nfs/nsaph_ci3/ci3_health_data/medicare/mortality/1999_2016/wu/cache_data/merged_by_year_v2",
+files.mort <- list.files(#"/nfs/nsaph_ci3/ci3_health_data/medicare/mortality/1999_2016/wu/cache_data/merged_by_year_v2",
+  '/n/dominici_nsaph_l3/Lab/projects/analytic/admissions_by_year',
                          pattern = "\\.fst",
                          full.names = TRUE)
+
+
 # For prototyping, just read in 2 years
 # f <- f[1:2]
 
@@ -147,12 +152,46 @@ dim(aggregate_data)
 
 
 
+## ==================================================== ##
+# read in new confounders that include ozone, no2, etc
+## ==================================================== ##
+confounders.f <- 
+  list.files( file.path(dir_data, "cache_data", "confounders"), full.names = TRUE)
 
-# save(covariates, file = paste0(dir_data, "covariates.RData"))
-# save(aggregate_data, file = paste0(dir_data, "aggregate_data.RData"))
+confounders_new <- 
+  lapply( confounders.f, fread, drop = 'V1') %>% rbindlist
+confounders_new[, zip := formatC( ZIP, width = 5, flag = '0')]
 
-write.fst(covariates, file.path(dir_data, "cache_data", "covariates.fst"))
-write.fst(aggregate_data, file.path(dir_data, "cache_data", "aggregate_data.fst"))
+confounders_new[zip == '99363']
+covariates[zip == '99363']
+
+# merge with aggregate data
+aggregate_data.additional_species <- 
+  merge( aggregate_data,
+         confounders_new[, .( zip, year, ozone.current_year,
+                              no2.current_year, ozone_summer.current_year)],
+         by = c( 'zip', 'year'), all.x = TRUE)
+
+# merge with covariates
+covariate.additional_species <- 
+  merge( covariates,
+         confounders_new[, .( zip, year, ozone.current_year,
+                              no2.current_year, ozone_summer.current_year)],
+         by = c( 'zip', 'year'), all.x = TRUE)
+
+
+
+dim( aggregate_data.additional_species)
+dim( covariate.additional_species)
+dim( aggregate_data)
+dim( covariates)
+
+## ==================================================== ##
+# save the data
+## ==================================================== ##
+
+write.fst(covariate.additional_species, file.path(dir_data, "cache_data", "covariates.fst"))
+write.fst(aggregate_data.additional_species, file.path(dir_data, "cache_data", "aggregate_data.fst"))
 
 covariates <- 
   read.fst( file.path(dir_data, "cache_data", "covariates.fst"), as.data.table = TRUE)
@@ -190,13 +229,14 @@ key_characteristics[, sum( dual.1) / sum( N)]
 ##  Read in the annual fst unit pm25 impacts
 ## ==================================================== ##
 # set directory structure
-disperseR.base <- '/nfs/home/H/henneman/shared_space/ci3_nsaph/LucasH/disperseR/'
-disperseR::create_dirs( disperseR.base)
+# disperseR.base <- '/nfs/home/H/henneman/shared_space/ci3_nsaph/LucasH/disperseR/'
+# disperseR::create_dirs( disperseR.base)
 
 # define pm25 exposure directory
-exp25_dir <- paste0( exp_dir, '25_new')
+# exp25_dir <- paste0( exp_dir, '25_new')
 
-exp25_dir2 <- '/nfs/home/H/henneman/shared_space/ci3_nsaph/LucasH/disperseR/main/output/zips_model.lm.cv_single_poly'
+# exp25_dir2 <- '/nfs/home/H/henneman/shared_space/ci3_nsaph/LucasH/disperseR/main/output/zips_model.lm.cv_single_poly'
+exp25_dir2 <- '/n/dominici_nsaph_l3/Lab/projects/analytic/coal_exposure_pm25/zips_model.lm.cv_single_poly'
 zips.files.tot.yr <- list.files( exp25_dir2,
                                  pattern = 'zips_.*total_\\d{4}\\.fst',
                                  full.names = TRUE)
@@ -277,9 +317,46 @@ summary( hyads_zips_tot_state[, Y1])
 mean( hyads_zips_tot_state[, Y1.adj], na.rm = T)
 mean( hyads_zips_tot_state[, Y1], na.rm = T)
 sd( hyads_zips_tot_state[, Y1], na.rm = T)
+
 ## ==================================================== ##
-## population-weighted hyads
+## check correlation of each variable with coal PM
 ## ==================================================== ##
+
+dat_annual <- read_fst( file.path(dir_data, "cache_data", 'hyads_pm25_annual.fst'),
+                        columns = c('zip','year', 'Y1', 'Y1.adj'), as.data.table = TRUE)
+covariates_use <- merge(covariates, dat_annual, by = c("zip", "year")) #, all.x = TRUE)
+aggregate_data_use <- merge(aggregate_data, dat_annual, by = c("zip", "year")) #, all.x = TRUE)
+
+# calculate portion of PM that is not coal PM
+covariates_use[, pm_not_coalPM := pm25_ensemble - Y1]
+aggregate_data_use[, pm_not_coalPM := pm25_ensemble - Y1]
+
+# calculate correlations
+cor( covariates_use[, .( Y1, pm_not_coalPM, pm25_ensemble, mean_bmi, smoke_rate,
+                         hispanic, pct_blk, medhouseholdincome,
+                         medianhousevalue, poverty, education, popdensity,
+                         pct_owner_occ, summer_tmmx, winter_tmmx, summer_rmax,
+                         winter_rmax, ozone.current_year,
+                         no2.current_year, ozone_summer.current_year)],
+     use = 'pairwise.complete.obs')
+
+
+aggregate_data_use[, lapply( .SD, function( x){ list( mean = sum( x * time_count, na.rm = TRUE) / sum( time_count),
+                                                  sd = sd( x, na.rm = TRUE),
+                                                  min = min( x, na.rm = TRUE),
+                                                  max = max( x, na.rm = TRUE))}),
+               .SDcols = c( 'Y1', 'pm_not_coalPM', 'pm25_ensemble','ozone.current_year',
+                           'no2.current_year', 'ozone_summer.current_year')]
+
+
+
+
+
+
+
+
+
+
 
 
 
