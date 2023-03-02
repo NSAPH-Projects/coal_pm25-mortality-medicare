@@ -19,7 +19,7 @@ aggregate_data <-
 # load hyads data
 ## ======================================================= ##
 dat_annual <- read_fst( file.path(dir_data, "cache_data", 'hyads_pm25_annual.fst'),
-                        columns = c('zip','year', 'Y1', 'Y1.adj'), as.data.table = TRUE)
+                        columns = c('zip','year', 'Y1', 'Y1.adj', 'Y1_raw'), as.data.table = TRUE)
 dat_annual_use <- merge(aggregate_data, dat_annual, by = c("zip", "year")) #, all.x = TRUE)
 
 # clean house
@@ -307,6 +307,24 @@ bootstrap_CI.fn <-
     Poisson_hy_pollutants_no_o3 <- coef(gnm_raw_hy_pollutants_no_o3)
     rm( gnm_raw_hy_pollutants_no_o3)
 
+    ## raw HyADS model adjusted by [total PM - coal PM] and other pollutants
+    gnm_raw_hy_raw_pollutants_no_o3 <- 
+      gnm(dead ~ Y1_raw + pm_not_coalPM + no2.current_year + 
+            mean_bmi + smoke_rate + hispanic + pct_blk +
+            medhouseholdincome + medianhousevalue +
+            poverty + education + popdensity + pct_owner_occ +
+            summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
+            as.factor(year) + as.factor(region) +
+            offset(log(time_count)),
+          eliminate = (as.factor(sex):as.factor(race):as.factor(dual):as.factor(entry_age_break):as.factor(followup_year)),
+          data = dat_annual_boots,
+          family = poisson(link = "log"))
+    
+    # save only the summaries, clear large object
+    Poisson_hy_raw_pollutants_no_o3 <- coef(gnm_raw_hy_raw_pollutants_no_o3)
+    rm( gnm_raw_hy_raw_pollutants_no_o3)
+    gc()
+    
     # create output data table
     out <- 
       data.table( boots_id = boots_id,
@@ -322,6 +340,7 @@ bootstrap_CI.fn <-
                   hyads_dpm_late =     Poisson_hy_dpm_late['Y1'],
                   hyads_pollutants =   Poisson_hy_pollutants['Y1'],
                   hyads_pollutants_no_o3=unname( Poisson_hy_pollutants_no_o3['Y1']),
+                  hyads_raw_pollutants_no_o3=unname( Poisson_hy_raw_pollutants_no_o3['Y1_raw']),
                   hyads.adj =          Poisson_hy.adj['Y1.adj'],
                   hyads.adj_pm =       Poisson_hy.adj_pm['Y1.adj'],
                   hyads.adj_dpm =      Poisson_hy.adj_dpm['Y1.adj'])
