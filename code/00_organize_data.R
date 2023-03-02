@@ -1,11 +1,9 @@
 # renv::init()
 # renv::install("lhenneman/disperseR@dev")
 
-# library( disperseR)
 library( fst)
 library( data.table)
 library( parallel)
-# library( xgboost)
 library( dplyr)
 library( foreign)
 
@@ -16,9 +14,9 @@ dir_out <- 'results/' #/nfs/home/X/xwu/shared_space/ci3_xwu/National_Causal/data
 ##  Read in covariates data
 ## ==================================================== ##
 files.mort <- list.files(#"/nfs/nsaph_ci3/ci3_health_data/medicare/mortality/1999_2016/wu/cache_data/merged_by_year_v2",
-  '/n/dominici_nsaph_l3/Lab/projects/analytic/admissions_by_year',
-                         pattern = "\\.fst",
-                         full.names = TRUE)
+  '/n/dominici_nsaph_l3/data/ci3_health_data/medicare/mortality/1999_2016/wu/cache_data/merged_by_year_v2/',
+  pattern = "\\.fst",
+  full.names = TRUE)
 
 
 # For prototyping, just read in 2 years
@@ -237,23 +235,60 @@ key_characteristics[, sum( dual.1) / sum( N)]
 
 # exp25_dir2 <- '/nfs/home/H/henneman/shared_space/ci3_nsaph/LucasH/disperseR/main/output/zips_model.lm.cv_single_poly'
 exp25_dir2 <- '/n/dominici_nsaph_l3/Lab/projects/analytic/coal_exposure_pm25/zips_model.lm.cv_single_poly'
+
+# files for raw, un-corrected hyads
+exp_dir.raw <- 'data/data/cache_data/hyads_raw_exp'
+
 zips.files.tot.yr <- list.files( exp25_dir2,
                                  pattern = 'zips_.*total_\\d{4}\\.fst',
                                  full.names = TRUE)
+zips.files.tot_raw.yr <- list.files( exp_dir.raw,
+                                     pattern = 'zips_.*total_\\d{4}\\.fst',
+                                     full.names = TRUE)
+
+# name each file by its year
 names( zips.files.tot.yr) <- 1999:2020
+names( zips.files.tot_raw.yr) <- 1999:2020
+
+
 hyads_zips_tot <- lapply( 1999:2020,
                           function( y){
                             file.in <- zips.files.tot.yr[ as( y, 'character')]
                             in.dt <- read.fst( file.in, as.data.table = TRUE)
                             in.dt[, year := y]
                           }) %>% rbindlist()
+hyads_zips_tot_raw <- lapply( 1999:2020,
+                              function( y){
+                                file.in <- zips.files.tot_raw.yr[ as( y, 'character')]
+                                in.dt <- read.fst( file.in, as.data.table = TRUE)
+                                in.dt[, year := y]
+                              }) %>% rbindlist()
+
+# scale raw hyads by its mean for scale issues
+hyads_zips_tot_raw[, hyads := hyads / mean( hyads)]
+
+# naming convention
 setnames( hyads_zips_tot, c( 'vals.out', 'ZIP'),
           c( 'Y1', 'zip'))
+setnames( hyads_zips_tot_raw, c( 'hyads', 'ZIP'),
+          c( 'Y1_raw', 'zip'))
 
-fwrite( hyads_zips_tot,
+# merge the two
+hyads_zips_tot_merge <- 
+  merge( hyads_zips_tot,
+         hyads_zips_tot_raw[,.( zip, year, Y1_raw)],
+         by = c( 'zip', 'year'))
+
+fwrite( hyads_zips_tot_merge,
         file.path(dir_data, "platform_data", 'pm25_annual_zip.csv'))
-fwrite( hyads_zips_tot,
+fwrite( hyads_zips_tot_merge,
         file.path("~/Desktop", 'pm25_annual_zip.csv'))
+
+ggplot( hyads_zips_tot_merge,
+        aes( x = Y1_raw, y = Y1)) + 
+  geom_point() + 
+  geom_smooth() +
+  facet_wrap( . ~ year)
 
 ## ==================================================== ##
 ## scale coal pm by observation scaling factors by region-year
@@ -296,7 +331,7 @@ state_bins[ state %in% c( 'North Dakota', 'South Dakota',
 
 # merge hyads zips with states
 hyads_zips_tot_state <- 
-  merge( hyads_zips_tot, state_bins,
+  merge( hyads_zips_tot_merge, state_bins,
          by = 'zip', all = TRUE) %>%
   merge( hyads_scale_factors,
          by = c( 'year', 'statebin_facility'),
@@ -342,11 +377,11 @@ cor( covariates_use[, .( Y1, pm_not_coalPM, pm25_ensemble, mean_bmi, smoke_rate,
 
 
 aggregate_data_use[, lapply( .SD, function( x){ list( mean = sum( x * time_count, na.rm = TRUE) / sum( time_count),
-                                                  sd = sd( x, na.rm = TRUE),
-                                                  min = min( x, na.rm = TRUE),
-                                                  max = max( x, na.rm = TRUE))}),
-               .SDcols = c( 'Y1', 'pm_not_coalPM', 'pm25_ensemble','ozone.current_year',
-                           'no2.current_year', 'ozone_summer.current_year')]
+                                                      sd = sd( x, na.rm = TRUE),
+                                                      min = min( x, na.rm = TRUE),
+                                                      max = max( x, na.rm = TRUE))}),
+                   .SDcols = c( 'Y1', 'pm_not_coalPM', 'pm25_ensemble','ozone.current_year',
+                                'no2.current_year', 'ozone_summer.current_year')]
 
 
 
