@@ -84,8 +84,13 @@ setnames( facility_info,
           c( 'Facility.ID..ORISPL.', 'Unit.ID'), 
           c( 'FacID', 'unitID'))
 
+# tricky text problems
 facility_info[, `:=` ( state = state.name[ match( State, state.abb)],
                        uID = gsub( '-|\\#|\\*', '.', paste( FacID, unitID, sep = '.')))]
+facility_info <- facility_info[!(duplicated( uID))]
+
+# one facility giving name issues
+facility_info[FacID == '1004', Facility.Name := 'Edwardsport']
 
 # group some of the states
 unit.states <- merge( facility_info, state_bins, by = 'state')[!duplicated( uID)]
@@ -95,7 +100,7 @@ unit.states <- merge( facility_info, state_bins, by = 'state')[!duplicated( uID)
 deaths_by_year_unit[, uID := gsub( '^X', '', variable)]
 
 # merge with emissions and states
-deaths_and_units <- merge( deaths_by_year_unit, unit.states, by = c( 'uID'), all.x = TRUE)
+deaths_and_units <- merge( deaths_by_year_unit, unit.states, by = c( 'uID')) #, all.x = TRUE)
 deaths_and_units <- merge( deaths_and_units, state_bins_zips, by = c( 'STATE'))
 
 # clarify state names
@@ -208,16 +213,23 @@ modnames <- c(   'hyads' = expression( Coal~PM[2.5]~(this~study)),
 deaths_year.gg <-
   ggplot( deaths_by_year,
           aes( x = year,
-               fill = model)) + 
+               # fill = model
+          )) + 
   geom_rect( xmin = 2017, xmax = 2020,
              ymin = 0, ymax = 10, fill = 'grey95', color = NA) +
-  geom_ribbon( aes( ymax = deaths_coef_3 / 10000,
-                    ymin = deaths_coef_1 / 10000),
-               size = .2,
-               color = NA, #'black',
-               alpha = .8) + 
-  scale_fill_brewer( palette = 'Dark2',
-                     labels = modnames) + 
+  geom_ribbon_pattern( aes( ymax = deaths_coef_3 / 10000,
+                            ymin = deaths_coef_1 / 10000,
+                            pattern_angle = model),
+                       size = .2,
+                       fill = NA,
+                       color = 'black',
+                       pattern_spacing = .025,
+                       # pattern_angle = 0,
+                       pattern_color = NA,
+                       pattern_fill = 'grey50',
+                       alpha = .8) + 
+  scale_pattern_angle_discrete( labels = modnames,
+                                name = 'Risk Ratio source') + 
   labs( y = 'Annual Excess Deaths (10,000)') +
   # coord_cartesian( ylim = c( 0, NULL)) +
   theme_bw() + 
@@ -227,9 +239,10 @@ deaths_year.gg <-
          legend.position = c(.65,.8),
          legend.text = element_text( size = 12),
          legend.text.align = 0,
-         legend.title = element_blank(),
+         legend.title = element_text( size = 14),
          strip.background = element_blank(),
          strip.text = element_text( size = 18))
+deaths_year.gg
 
 ggsave( deaths_year.gg,
         filename = 'figures/deaths_per_year.png',
@@ -253,7 +266,7 @@ deaths_year.gg.sens <-
              ymin = -10, ymax = 10, fill = 'grey95', color = NA) +
   geom_hline( yintercept = 0) +
   geom_line( aes( y = deaths_coef_2_diff),
-             size = 1.25,
+             linewidth = 1.25,
              alpha = .8) + 
   scale_y_continuous( labels = scales::percent) +
   scale_linetype_manual( labels = modnames.s,
@@ -351,13 +364,13 @@ save( deaths_by_fac_year_statebin_lab, deaths_by_fac_info.lab,
       deaths_by_fac_info, deaths_by_unit_year_statebin, 
       deaths_by_year, deaths_by_year_fac_statebinf, 
       deaths_by_fac_statebinf, deaths_by_statebinf, state_bins,
-      file = 'data/cache_data/annual_deaths_by.RData')
+      file = 'data/data/cache_data/annual_deaths_by.RData')
 
 ## ================================================== ##
 # Medicare deaths/death rates 
 ## ================================================== ##
 # load in all deaths (including projected) by year
-sum_deaths_year_state <- read.fst( 'data/cache_data/total_deaths_by_state_year.fst', as.data.table = TRUE)
+sum_deaths_year_state <- read.fst( 'data/data/cache_data/total_deaths_by_state_year.fst', as.data.table = TRUE)
 sum_deaths_year <- sum_deaths_year_state[,.( deaths.fill = sum( deaths.fill),
                                              denom.fill = sum( denom.fill)),
                                          by = year]
@@ -450,20 +463,23 @@ gg_bardeaths <-
          panel.spacing = unit( 0.1, 'cm'),
          plot.background = element_blank(),
          strip.background = element_blank(),
-         strip.text = element_text( size = 18, 
+         strip.text = element_text( size = 16, 
                                     margin = margin( 0, 0, 0, 0)),
-         strip.text.y = element_text( angle = 180))
+         strip.text.y.left = element_text( angle = 0))
 
 # gg_bardeaths
 ggsave( gg_bardeaths,
         filename = 'figures/deaths_coal_pm25_unit_year.png',
         height = 15, width = 20, unit = 'in')
+ggsave( gg_bardeaths,
+        filename = 'figures/deaths_coal_pm25_unit_year.pdf',
+        height = 15, width = 20, unit = 'in', device = cairo_pdf)
 
 ## ================================================== ##
 # region plot with emissions
 ## ================================================== ##
 # get units dataset
-load( 'data/units_coal_1997_2021.rda')
+load( 'data/data/units_coal_1997_2021.rda')
 units_all <- units_updated %>% as.data.table
 units_all[, FacID := gsub( '-.*$', '', ID)]
 
@@ -545,6 +561,9 @@ map_emissions
 ggsave( 'figures/emissions_hex_plot.png',
         map_emissions,
         height = 2.9, width = 5, unit = 'in', scale = 1.6)
+ggsave( 'figures/emissions_hex_plot.pdf',
+        map_emissions, device = cairo_pdf,
+        height = 2.9, width = 5, unit = 'in', scale = 1.6)
 
 ## ================================================== ##
 # plot specific facilities change over time
@@ -594,7 +613,12 @@ change_over_time.gg <-
           aes( x = year, y = deaths_coef_2, label = lab,
                color = factor( deaths_rank), group = as.factor( FacID))) + 
   labs( y = 'Annual Excess Deaths') +
-  geom_line( size = 2) + 
+  geom_line( aes( x = year, y = deaths_coef_2, group = FacID),
+             color = 'grey20', alpha = 1,
+             linewidth = .11,
+             inherit.aes = FALSE,
+             data = deaths_by_fac_year_statebin_lab[model == 'hyads']) +
+  geom_line( size = 1) + 
   geom_text_repel( data = deaths_by_fac.lab,
                    direction = 'y',
                    xlim = c( NA, 1999),
@@ -602,7 +626,7 @@ change_over_time.gg <-
                    size = 4,
                    x = 1999) +
   scale_color_viridis( discrete = TRUE,
-                       begin = .2,
+                       begin = .4,
                        end = .8) + 
   facet_wrap(  . ~ statebin_facility,
                nrow = 2) + 
@@ -614,13 +638,18 @@ change_over_time.gg <-
          axis.title = element_text( size = 14),
          axis.title.x = element_blank(),
          legend.position = 'none',
+         panel.grid.major = element_line( color = 'grey90', size = .2),
+         panel.grid.minor = element_blank(),
          strip.text = element_text( size = 14))
+change_over_time.gg
 
 # save it
 ggsave( change_over_time.gg,
+        filename = 'figures/deaths_coal_pm25_2facilities_year.pdf',
+        height = 5, width = 15, unit = 'in', device = cairo_pdf)
+ggsave( change_over_time.gg,
         filename = 'figures/deaths_coal_pm25_2facilities_year.png',
         height = 5, width = 15, unit = 'in')
-
 
 ## ================================================== ##
 # percent of deaths attributable to total PM
@@ -676,6 +705,9 @@ deaths_coal_pm.gg <-
 ggsave( deaths_coal_pm.gg,
         filename = 'figures/deaths_per_year_pm_coal_pm25.png',
         height = 4, width = 9, unit = 'in')
+ggsave( deaths_coal_pm.gg,
+        filename = 'figures/deaths_per_year_pm_coal_pm25.pdf',
+        height = 4, width = 9, unit = 'in', device = cairo_pdf)
 
 # fraction before 2008
 deaths_by_year_merge[ year %in% 2000:2008, sum( deaths_hyads) / sum( deaths_pm)]
@@ -687,21 +719,11 @@ deaths_by_year_merge[ , sum( deaths_pm)]
 #  plot total hyads
 ## ================================================= ##
 # read zcta shapefile and crosswalk
-zip_sf_reader <- function( d = direct.dat,
-                           system_comp = c( 'RCE', 'Mac')){
-  system_comp <- system_comp[1]
-  # zcta file downloaded from 'ftp://ftp2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_zcta510_500k.zip'
-  if( system_comp == 'RCE'){
-    zcta_shapefile <- file.path( d, 'cb_2017_us_zcta510_500k.shp')
-  } else 
-    zcta_shapefile <- file.path( d, 'cb_2016_us_zcta510_500k.shp')
+zip_sf_reader <- function( d = direct.dat){
+  zcta_shapefile <- file.path( d, 'cb_2017_us_zcta510_500k.shp')
   
   # zcta-ZIP crosswalk file downloaded from 'http://mcdc2.missouri.edu/data/corrlst/'
   cw <- disperseR::crosswalk
-  # cw <- fread( crosswalk_csv)
-  # make sure ZCTA's are 5 digits to merge on zcta ID
-  # cw$ZCTA <- formatC( cw$ZCTA, width = 5, format = "d", flag = "0") 
-  
   zips <- st_read(zcta_shapefile)
   setnames( zips, 'ZCTA5CE10', 'ZCTA')
   zips <- merge( zips, cw, by = "ZCTA", all = F, allow.cartesian = TRUE)
@@ -709,17 +731,15 @@ zip_sf_reader <- function( d = direct.dat,
   return( zips)
 }
 
+direct.dat <- 'data/data/zcta_500k'
 
-# direct.dat <- '/nfs/home/H/henneman/shared_space/ci3_nsaph/LucasH/disperseR/main/input/zcta_500k'
-direct.dat <- '~/Dropbox/Harvard/Manuscripts/Energy_Transitions/Data_and_code/data/gis'
-
-zips <- zip_sf_reader( direct.dat, 'Mac') %>%
+zips <- zip_sf_reader( direct.dat) %>%
   data.table()
-setnames( zips, 'ZIP', 'zip')
+setnames( zips, 'zip', 'ZIP')
 
 ## CHANGE THIS ##
 # gridded hyads file location
-hyads_file_loc <- '~/Dropbox/Harvard/ARP/HyADS/hyads_longterm/exp_pm25_noint/zips_model.lm.cv_single_poly'
+hyads_file_loc <- '/n/dominici_nsaph_l3/Lab/projects/analytic/coal_exposure_pm25/zips_model.lm.cv_single_poly'
 
 #coordinate reference system projection string for spatial data
 p4s <- "+proj=lcc +lat_1=33 +lat_2=45 +lat_0=40 +lon_0=-97 +a=6370000 +b=6370000"
@@ -760,7 +780,8 @@ states <- states[states$name %in% c( states48),]
 # do the plpotting
 spat.gg <- ggplot( zips.dat.sf[ zips.dat.sf$year %in% c( 1999, 2006, 2013, 2020),],
                    aes( fill = vals.out, color = vals.out)) + 
-  geom_sf( aes( geometry = geometry), color = NA) + 
+  geom_sf( aes( geometry = geometry),
+           color = 'transparent') + 
   scale_fill_gradient(high = "black",
                       low = "cornsilk",
                       breaks = c( 0, 1, 2, 3),
@@ -771,14 +792,16 @@ spat.gg <- ggplot( zips.dat.sf[ zips.dat.sf$year %in% c( 1999, 2006, 2013, 2020)
   scale_color_gradient(high = "black",
                        low = "cornsilk",
                        breaks = c( 0, 1, 2, 3),
-                       labels = c( '0.0', '1.0', '>2.0', '3.0'),
+                       labels = c( '0.0', '1.0', '≥2.0', '3.0'),
                        na.value = NA,
                        oob = scales::squish,
-                       limits = c( 0, 2)) +
+                       limits = c( 0, 2),
+                       guide = 'none') +
   geom_sf( data = states,
            inherit.aes = FALSE,
            fill = NA, color = 'grey90', size = .05) +
-  labs( fill = expression(paste( Coal[SO2], ' ', PM["2.5"], ', µg ', m^{"-3"}))) +
+  labs( fill =  expression(paste( Coal, ' ', PM["2.5"], ', µg ', m^{"-3"})),
+        color = expression(paste( Coal, ' ', PM["2.5"], ', µg ', m^{"-3"}))) +
   scale_x_continuous( expand = c( 0, 0)) +
   scale_y_continuous( expand = c( 0, 0),
                       breaks = 1:10) +
@@ -802,7 +825,7 @@ hist.gg <- ggplot( zips.dat,
                    aes( y = vals.out, x = year, group = year)) + 
   geom_boxplot( size = .5) +
   scale_y_continuous( breaks = 0:10) +
-  labs( y = expression( paste( Coal['SO2'], ' ', PM["2.5"], ', µg', m^{"-3"}))) +
+  labs( y = expression( paste( Coal, ' ', PM["2.5"], ', µg', m^{"-3"}))) +
   theme_bw() + 
   theme( axis.text = element_text( size = 16),
          # axis.text.x = element_text( size = 20),
@@ -815,8 +838,196 @@ gg_combine <- cowplot::plot_grid(hist.gg,
                                  labels = NULL, ncol = 1, 
                                  align = 'v', axis = 'lr') 
 
+ggsave( 'figures/hyads_trends.pdf', gg_combine,
+        width = 14, height = 5, scale = 1.2, device = cairo_pdf)
 ggsave( 'figures/hyads_trends.png', gg_combine,
         width = 14, height = 5, scale = 1.2)
+
+
+## ================================================= ##
+#  plot other pollutants
+## ================================================= ##
+dir_data <- 'data/data' #/nfs/home/X/xwu/shared_space/ci3_xwu/National_Causal/data2016_temp/'
+dir_out <- 'results/' #/nfs/home/X/xwu/shared_space/ci3_xwu/National_Causal/data2016_temp/'
+
+aggregate_data <- read.fst( file.path(dir_data, "cache_data", "aggregate_data.fst"),
+                            as.data.table = TRUE)
+covariates <- 
+  read.fst( file.path(dir_data, "cache_data", "covariates.fst"), as.data.table = TRUE)
+
+# load hyads data
+dat_annual <- read_fst( file.path(dir_data, "cache_data", 'hyads_pm25_annual.fst'),
+                        columns = c('zip','year', 'Y1', 'Y1.adj'), as.data.table = TRUE)
+
+# create death & rate sums by zip-year
+dat_annual_zip_death <- 
+  aggregate_data[, .( death_rate = sum( dead) / sum( time_count),
+                      dead = sum( dead),
+                      time_count = sum( time_count)),
+                 by = .( year, zip)]
+
+dat_annual_zip_year <- merge(covariates, 
+                             dat_annual_zip_death, by = c("zip", "year")) #, all.x = TRUE)
+
+dat_annual_hy <- 
+  merge( dat_annual_zip_year,
+         dat_annual,
+         by = c( 'zip', 'year'))
+
+# clean house
+rm(list = c("aggregate_data", "covariates", "dat_annual"))
+
+# calculate portion of PM that is not coal PM
+dat_annual_hy[, pm_not_coalPM := pm25_ensemble - Y1]
+
+# create dataset for plotting
+other_pollutants.dt <- 
+  dat_annual_hy[ year %in% c( 2000, 2008, 2016),
+                 .( zip, year, pm_not_coalPM, pm25_ensemble, 
+                    ozone_summer.current_year, no2.current_year)] %>%
+  # melt( id.vars = c( 'zip', 'year'), variable.name = 'pollutant', value.name = 'concentration') %>%
+  merge( zips, by = 'zip')
+
+gg_pm <- 
+  ggplot( other_pollutants.dt,
+          aes( geometry = geometry, fill = pm25_ensemble)) + 
+  geom_sf( size = 0, color = NA) +
+  geom_sf( data = states,
+           inherit.aes = FALSE,
+           fill = NA, color = 'grey90', size = .05) +
+  scale_fill_gradient(high = "black",
+                      low = "cornsilk",
+                      # breaks = c( 0, 1, 2, 3),
+                      # labels = c( '0.0', '1.0', '≥2.0', '3.0'),
+                      na.value = NA,
+                      oob = scales::squish,
+                      limits = c( 0, 15)) +
+  guides( color = NULL) +
+  labs( fill = expression( atop( Total~PM["2.5"], µg~m^{"-3"}))) +
+  facet_wrap( . ~ year, nrow = 1, strip.position = 'top') +
+  theme_bw() + 
+  theme( axis.text = element_blank(),
+         axis.title = element_blank(),
+         axis.ticks = element_blank(),
+         legend.background = element_blank( ),
+         legend.direction = 'vertical',
+         legend.position = 'right',
+         legend.text = element_text( size = 14),
+         legend.title = element_text( size = 14, hjust = 0),
+         panel.background = element_rect( fill = 'white'),
+         panel.grid = element_blank(),
+         panel.border = element_blank(),
+         strip.background = element_blank(),
+         strip.text = element_text( size = 16))
+gg_pm.nc <- 
+  ggplot( other_pollutants.dt,
+          aes( geometry = geometry, fill = pm_not_coalPM)) + 
+  geom_sf( size = 0, color = NA) +
+  geom_sf( data = states,
+           inherit.aes = FALSE,
+           fill = NA, color = 'grey90', size = .05) +
+  scale_fill_gradient(high = "black",
+                      low = "lightblue",
+                      # breaks = c( 0, 1, 2, 3),
+                      # labels = c( '0.0', '1.0', '≥2.0', '3.0'),
+                      na.value = NA,
+                      oob = scales::squish,
+                      limits = c( 0, 15)) +
+  guides( color = NULL) +
+  labs( fill = expression( atop( Non-coal~PM["2.5"], µg~m^{"-3"}))) +
+  facet_wrap( . ~ year, nrow = 1, strip.position = 'bottom') +
+  theme_bw() + 
+  theme( axis.text = element_blank(),
+         axis.title = element_blank(),
+         axis.ticks = element_blank(),
+         legend.background = element_blank( ),
+         legend.direction = 'vertical',
+         legend.position = 'right',
+         legend.text = element_text( size = 14),
+         legend.title = element_text( size = 14, hjust = 0),
+         panel.background = element_rect( fill = 'white'),
+         panel.grid = element_blank(),
+         panel.border = element_blank(),
+         strip.background = element_blank(),
+         strip.text = element_blank( ))
+
+gg_no2 <- 
+  ggplot( other_pollutants.dt,
+          aes( geometry = geometry, fill = no2.current_year)) + 
+  geom_sf( size = 0, color = NA) +
+  geom_sf( data = states,
+           inherit.aes = FALSE,
+           fill = NA, color = 'grey90', size = .05) +
+  scale_fill_gradient(high = "black",
+                      low = "pink",
+                      # breaks = c( 0, 1, 2, 3),
+                      # labels = c( '0.0', '1.0', '≥2.0', '3.0'),
+                      na.value = NA,
+                      oob = scales::squish,
+                      limits = c( 0, 30)) +
+  labs( fill = expression( atop( NO["2"], ppb))) +
+  guides( color = NULL) +
+  facet_wrap( . ~ year, nrow = 1, strip.position = 'bottom') +
+  theme_bw() + 
+  theme( axis.text = element_blank(),
+         axis.title = element_blank(),
+         axis.ticks = element_blank(),
+         legend.background = element_blank( ),
+         legend.direction = 'vertical',
+         legend.position = 'right',
+         legend.text = element_text( size = 14),
+         legend.title = element_text( size = 14, hjust = 0),
+         panel.background = element_rect( fill = 'white'),
+         panel.grid = element_blank(),
+         panel.border = element_blank(),
+         strip.background = element_blank(),
+         strip.text = element_blank( ))
+
+gg_o3 <- 
+  ggplot( other_pollutants.dt[1:1000],
+          aes( geometry = geometry, fill = ozone_summer.current_year)) + 
+  geom_sf( size = 0, color = NA) +
+  geom_sf( data = states,
+           inherit.aes = FALSE,
+           fill = NA, color = 'grey90', size = .05) +
+  scale_fill_gradient(high = "black",
+                      low = "bisque",
+                      # breaks = c( 0, 1, 2, 3),
+                      # labels = c( '0.0', '1.0', '≥2.0', '3.0'),
+                      na.value = NA,
+                      oob = scales::squish,
+                      limits = c( 0, 75)) +
+  guides( color = NULL) +
+  labs( fill = expression( atop( O["3"], ppb))) +
+  facet_wrap( . ~ year, nrow = 1, strip.position = 'bottom') +
+  theme_bw() + 
+  theme( axis.text = element_blank(),
+         axis.title = element_blank(),
+         axis.ticks = element_blank(),
+         legend.background = element_blank( ),
+         legend.direction = 'vertical',
+         legend.position = 'right',
+         legend.text = element_text( size = 14),
+         legend.title = element_text( size = 14, hjust = 0, debug = T),
+         legend.title.align = 0,
+         panel.background = element_rect( fill = 'white'),
+         panel.grid = element_blank(),
+         panel.border = element_blank(),
+         strip.background = element_blank(),
+         strip.text = element_blank())
+gg_o3
+
+gg_pollutants <- 
+  cowplot::plot_grid( gg_pm,
+                      gg_pm.nc,
+                      gg_no2,
+                      gg_o3,
+                      rel_heights = c( 1.11, 1, 1, 1),
+                      labels = NULL, ncol = 1, 
+                      align = 'v', axis = 'lr') 
+# gg_pollutants
+ggsave( 'figures/pollutant_maps.png', gg_pollutants,
+        width = 14, height = 10, scale = .8)
 
 ## ================================================== ##
 # what percent of all medicare deaths?
@@ -872,32 +1083,55 @@ poisson_coefs <- fread( paste0(dir_out, "poisson_model_coefs.csv"))
 # loads the object bootstrap_CI
 load( paste0(dir_out, "loglinear_coefs_boots.RData"))
 
-# vector of model names used in estimates and ci calc's
-poisson_coefs[, model_names := gsub( 'Y1', 'hyads', model)]
-poisson_coefs <- poisson_coefs[c( 1:10, 14, 11:13)]
+# which ones to plot?
+plot_betas <- 
+  c( 'pm25_ensemble', 'hyads', 'hyads_early', 'hyads_mid', 'hyads_late',
+     'hyads_pm', 'hyads_dpm', 'hyads_dpm_early', 'hyads_dpm_mid',
+     'hyads_dpm_late', 'hyads_pollutants', 'hyads_pollutants_no_o3',
+     'hyads_raw_pollutants_no_o3', 'hyads.adj', 'hyads.adj_pm', 'hyads.adj_dpm')
 
 # Add descriptors
-poisson_coefs[, `:=` (descriptor1 = c( 'PM', 
-                                       rep( 'Coal~PM["2.5"]~with~no~additional~adjustment', 4),
-                                       'Coal~PM["2.5"]~adjusted~by~total~PM["2.5"]',
-                                       rep( 'Coal~PM["2.5"]~adjusted~by~non-coal~PM["2.5"]', 4),
-                                       'Coal~PM["2.5"]~adjusted~by~non-coal~PM["2.5"]*","~O["3"]*","~and~NO["2"]',
-                                       rep( 'Sulfate-corrected~coal~PM["2.5"]', 3)),
-                      descriptor2 = c( '2000-2016',
-                                       '1999-2016', '1999-2003', '2004-2007', '2008-2016',
-                                       '2000-2016', '2000-2016',
-                                       '1999-2003', '2004-2007', '2008-2016',
-                                       '2000-2016',
-                                       'No~additional~adjustment~(1999-2016)', 
-                                       'Adjusted~by~total~PM["2.5"]~(2000-2016)', 
-                                       'Adjusted~by~non-coal~PM["2.5"]~(2000-2016)'),
-                      descriptor3 = c( 'PM',
-                                       rep( 'coalPM', 10),
-                                       rep( 'coalPM.adj', 3))) ]
+poisson_coefs_info <- 
+  data.table(model = plot_betas,
+             descriptor1 = c( 'PM', 
+                              rep( 'Coal~PM["2.5"]~with~no~additional~adjustment', 4),
+                              'Coal~PM["2.5"]~adjusted~by~total~PM["2.5"]',
+                              rep( 'Coal~PM["2.5"]~adjusted~by~non-coal~PM["2.5"]', 4),
+                              'Coal~PM["2.5"]~adjusted~by~non-coal~PM["2.5"]*","~O["3"]*","~and~NO["2"]',
+                              'Coal~PM["2.5"]~adjusted~by~non-coal~PM["2.5"]~and~NO["2"]',
+                              'Raw~HyADS~adjusted~by~non-coal~PM["2.5"]~and~NO["2"]',
+                              rep( 'Sulfate-corrected~coal~PM["2.5"]', 3)),
+             descriptor2 = c( '2000-2016',
+                              '1999-2016', '1999-2003', '2004-2007', '2008-2016',
+                              '2000-2016', '2000-2016',
+                              '1999-2003', '2004-2007', '2008-2016',
+                              '2000-2016', '2000-2016', '2000-2016',
+                              'No~additional~adjustment~(1999-2016)', 
+                              'Adjusted~by~total~PM["2.5"]~(2000-2016)', 
+                              'Adjusted~by~non-coal~PM["2.5"]~(2000-2016)'),
+             descriptor3 = c( 'PM',
+                              rep( 'coalPM', 11),
+                              'raw_coalPM',
+                              rep( 'coalPM.adj', 3)))
 
-poisson_coefs[, `:=` (descriptor1 = factor( descriptor1, levels = unique( descriptor1)),
-                      descriptor2 = factor( descriptor2, levels = rev( unique( descriptor2))),
-                      descriptor3 = factor( descriptor3, levels = rev( unique( descriptor3))))]
+# add in the total deaths from each model
+deaths_total_models <- 
+  read.fst( paste0(dir_out, "deaths_by_year_total_coal_pm25.fst"), as.data.table = TRUE)
+
+deaths_total_models_sum <- 
+  deaths_total_models[, lapply( .SD, sum),
+                      .SDcols = c( 'deaths_coef_1', 'deaths_coef_2', 'deaths_coef_3'),
+                      by = model]
+
+# merge all the data
+poisson_coefs_plot <- 
+  merge( poisson_coefs,
+         poisson_coefs_info, by = 'model') %>%
+  merge( deaths_total_models_sum, by = 'model')
+
+poisson_coefs_plot[, `:=` (descriptor1 = factor( descriptor1, levels = unique( poisson_coefs_info$descriptor1)),
+                           descriptor2 = factor( descriptor2, levels = rev( unique( poisson_coefs_info$descriptor2))),
+                           descriptor3 = factor( descriptor3, levels = rev( unique( poisson_coefs_info$descriptor3))))]
 
 # function to calculate CIs
 CI_calc <- 
@@ -915,12 +1149,13 @@ CI_calc <-
   }
 
 # create data table of central estimates and CI's
-poisson_coefs[, `:=` (ci_low  = CI_calc( Estimate, model_names, 'low'),
-                      ci_high = CI_calc( Estimate, model_names, 'high')), by = model_names]
+poisson_coefs_plot[, `:=` (ci_low  = CI_calc( Estimate, model, 'low'),
+                           ci_high = CI_calc( Estimate, model, 'high')), by = model]
+
 
 #create the plot
 coef_ci.gg <-
-  ggplot( poisson_coefs[ descriptor1 != 'PM'],
+  ggplot( poisson_coefs_plot[  !( model %in% c( 'pm25_ensemble', 'hyads_raw_pollutants_no_o3'))],
           aes( y = descriptor2,
                x = exp( Estimate), xmin = exp( ci_low), xmax = exp( ci_high)#,
                # shape = descriptor3, linetype = descriptor3
@@ -936,10 +1171,105 @@ coef_ci.gg <-
   theme( axis.title.y = element_blank(),
          axis.text = element_text( size = 12),
          axis.title.x = element_text( size = 14),
+         strip.background = element_blank(),
+         strip.clip = 'off',
+         strip.text = element_text( size = 16, hjust = 0))
+# coef_ci.gg 
+
+
+# create a bar chart
+death_ci.gg <-
+  ggplot( poisson_coefs_plot[  !( model %in% c( 'pm25_ensemble', 'hyads_raw_pollutants_no_o3'))],
+          aes( y = descriptor2,
+               x = deaths_coef_2 / 10000, xmin = deaths_coef_1  / 10000, xmax = deaths_coef_3  / 10000
+          )) + 
+  geom_col( fill = 'grey80') +
+  geom_errorbarh( height = 0) + 
+  scale_y_discrete( labels = scales::label_parse()) +
+  scale_x_continuous( name = 'Total excess deaths (10,000)',
+                      breaks = seq( 0, 100, 25)) +
+  ggforce::facet_col( descriptor1 ~ ., scales = "free_y", 
+                      space = "free", labeller = label_parsed) +
+  theme_minimal() + 
+  theme( axis.title.y = element_blank(),
+         axis.text = element_text( size = 12),
+         axis.text.y = element_blank(),
+         axis.title.x = element_text( size = 14),
+         strip.background = element_blank(),
+         strip.text = element_text( size = 16, color = 'transparent'))
+# death_ci.gg
+
+cowplot::plot_grid( coef_ci.gg,
+                    death_ci.gg,
+                    rel_widths = c( 2, 2),
+                    labels = NULL, #unique( poisson_coefs_plot[  !( model %in% c( 'pm25_ensemble', 'hyads_raw_pollutants_no_o3'))]$descriptor1), 
+                    ncol = 2, 
+                    align = 'h', axis = 'lr') 
+
+design <- "
+  A##
+  AB#
+  #BC
+  ##C
+"
+
+lvls <- c("Points", "Bar")
+poisson_coefs_plot[, V1 := NULL]
+dat.melt <- 
+  melt( poisson_coefs_plot[  !( model %in% c( 'pm25_ensemble', 'hyads_raw_pollutants_no_o3'))],
+        id.vars = c( 'model', 'descriptor1', 'descriptor2', 'descriptor3'))
+dat.melt[variable %in% c( 'ci_low', 'Estimate', 'ci_high'), plot := 'point']
+dat.melt[variable %in% c( 'deaths_coef_1', 'deaths_coef_2', 'deaths_coef_3'), plot := 'bar']
+
+dat_point <- 
+  poisson_coefs_plot[, .( model, descriptor1, descriptor2, descriptor3, Estimate, ci_low, ci_high)]
+dat_point[, plot := 'point']
+dat_bar <- 
+  poisson_coefs_plot[, .( model, descriptor1, descriptor2, descriptor3, deaths_coef_1, deaths_coef_2, deaths_coef_3)]
+dat_bar[, plot := 'bar']
+
+dat.melt_point <- 
+  rbind( dat_point, dat_bar, fill = TRUE)
+  
+
+ggplot( ) + 
+  scale_y_discrete( labels = scales::label_parse()) +
+  scale_x_continuous( name = expression( Risk~ratio~per~µg~m^{"-3"})) +
+  # geom_vline( xintercept = 1,
+  #             data = dat.melt[plot == 'point']) +
+  geom_point( aes( y = descriptor2,
+                   x = exp( Estimate)),
+              data = dat.melt_point[plot == 'point']) + 
+  geom_errorbarh( aes( y = descriptor2,
+                       xmin = exp( ci_low), xmax = exp( ci_high)),
+                  height = 0,
+                  data = dat.melt_point[plot == 'point']) +
+  geom_col( aes( y = descriptor2,
+                 x = deaths_coef_2 / 10000),
+              data = dat.melt_point[plot == 'bar']) + 
+  # facet_grid2(  descriptor1 ~ facet, scales = "free",
+  #               labeller = label_parsed, space = 'free'
+  #               # dir = 'h'
+  #               )  +
+  # force_panelsizes(cols = c(5, 1),
+  #                  # rows = c(0.5),
+  #                  respect = TRUE) +
+  facet_grid( descriptor1 ~ plot, scales = "free",
+                      space = "free",
+              labeller = label_parsed) +
+  # ggforce::facet_row( descriptor1 ~ plot, scales = "free_y",
+  #                     space = "free", labeller = label_parsed) +
+  theme_minimal() +
+  theme( axis.title.y = element_blank(),
+         axis.text = element_text( size = 12),
+         axis.title.x = element_text( size = 14),
          strip.text = element_text( size = 14))
 
-
-coef_ci.gg 
+## ====================================================== ##
+# how much do mortality rates vary? 
+#. approach - look at largest ZIP codes in different regions
+## ====================================================== ##
+dat_annual_zip_death
 
 ## ================================================== ##
 # present some sums
