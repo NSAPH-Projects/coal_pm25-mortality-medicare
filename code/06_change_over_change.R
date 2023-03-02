@@ -21,7 +21,7 @@ covariates <-
 # load hyads data
 ## ======================================================= ##
 dat_annual <- read_fst( file.path(dir_data, "cache_data", 'hyads_pm25_annual.fst'),
-                        columns = c('zip','year', 'Y1', 'Y1.adj'), as.data.table = TRUE)
+                        columns = c('zip','year', 'Y1', 'Y1.adj', 'Y1_raw'), as.data.table = TRUE)
 
 ## ======================================================= ##
 # create death & rate sums by zip-year
@@ -47,27 +47,316 @@ rm(list = c("aggregate_data", "covariates", "dat_annual"))
 # calculcate differences from 2000
 ## ======================================================= ##
 # extract year 2000 data
+cols_2000 <- names( dat_annual_hy)[ !( names( dat_annual_hy) %in% c( 'year', 'statecode', 'year_fac'))]
+cols_2000diff <- names( dat_annual_hy)[ !( names( dat_annual_hy) %in% c( 'zip', 'year', 'statecode', 'year_fac'))]
 dat_annual_use2000 <- 
-  dat_annual_hy[year == 2000, .( zip, death_rate, pm25_ensemble, Y1)]
+  dat_annual_hy[year == 2000, ..cols_2000]
 setnames( dat_annual_use2000,
-          c( 'death_rate', 'pm25_ensemble', 'Y1'),
-          c( 'death_rate2000', 'pm25_ensemble2000', 'Y12000'))
+          cols_2000diff,
+          paste0( cols_2000diff, '_2000'))
 
 # merge year 2000 data with original dataset
 dat_annual_use_delt <- 
-  merge( dat_annual_hy,
+  merge( dat_annual_hy[ year %in% 2000:2016],
          dat_annual_use2000,
          by = 'zip')
 
 # calculate differences in exposure & rates from 2000
-dat_annual_use_delt[, `:=` ( death_rate_delta = death_rate - death_rate2000,
-                             log_death_rate_delta = log( death_rate) - log( death_rate2000),
-                             pm25_ensemble_delta = pm25_ensemble - pm25_ensemble2000,
-                             Y1_delta = Y1 - Y12000)]
+dat_annual_use_delt[, `:=` ( death_rate_delta = death_rate - death_rate_2000,
+                             pm25_ensemble_delta = pm25_ensemble - pm25_ensemble_2000,
+                             Y1_delta = Y1 - Y1_2000,
+                             Y1_raw_delta = Y1_raw - Y1_raw_2000,
+                             mean_bmi_delta = mean_bmi - mean_bmi_2000,
+                             smoke_rate_delta = smoke_rate - smoke_rate_2000,
+                             hispanic_delta = hispanic - hispanic_2000,
+                             pct_blk_delta = pct_blk - pct_blk_2000,
+                             medhouseholdincome_delta = medhouseholdincome - medhouseholdincome_2000,
+                             medianhousevalue_delta = medianhousevalue - medianhousevalue_2000,
+                             poverty_delta  =  poverty - poverty_2000,
+                             education_delta = education - education_2000,
+                             popdensity_delta = popdensity - popdensity_2000,
+                             pct_owner_occ_delta = pct_owner_occ - pct_owner_occ_2000,
+                             summer_tmmx_delta = summer_tmmx - summer_tmmx_2000,
+                             winter_tmmx_delta = winter_tmmx - winter_tmmx_2000,
+                             summer_rmax_delta = summer_rmax - summer_rmax_2000,
+                             winter_rmax_delta = winter_rmax - winter_rmax_2000,
+                             ozone.current_year_delta = ozone.current_year - ozone.current_year_2000,
+                             no2.current_year_delta = no2.current_year - no2.current_year_2000,
+                             ozone_summer.current_year_delta = ozone_summer.current_year - ozone_summer.current_year_2000,
+                             dead_delta = dead - dead_2000,
+                             time_count_delta = time_count - time_count_2000)]
+
+# center and scale
+scale_cols_all <- grep( '_2000|_delt', names( dat_annual_use_delt), value = TRUE)
+scale_cols <- scale_cols_all[ !( scale_cols_all %in% c( 'pm25_ensemble_2000', 'region_2000', 'death_rate_2000',
+                                                        'dead_2000', 'Y1_2000', 'Y1_raw_2000', 'Y1.adj_2000',
+                                                        'pm25_ensemble_delta', 'region_delta', 'death_rate_delta',
+                                                        'dead_delta', 'Y1_delta', 'Y1.adj_delta'))]
+scale_cols_names <- paste0( scale_cols, '_scale')
+
+dat_annual_use_delt[, (scale_cols_names) := lapply( .SD, function( x) (x - mean( x, na.rm = T)) / sd( x, na.rm = T)),
+                    .SDcols = scale_cols, 
+                    by = year]
+
+
+dat_annual_use_delt[ year > 2008, `:=` (Y1quantile = cut( Y1_delta, 
+                                                          quantile(Y1_delta, probs = 0:20/20),
+                                                          labels = FALSE, include.lowest = TRUE),
+                                        Y1_rawquantile = cut( Y1_raw_delta, 
+                                                              quantile(Y1_raw_delta, probs = 0:20/20),
+                                                              labels = FALSE, include.lowest = TRUE),
+                                        PMquantile = cut( pm25_ensemble_delta, 
+                                                          quantile( pm25_ensemble_delta, 
+                                                                    probs = 0:20/20, na.rm = TRUE),
+                                                          labels = FALSE, include.lowest = TRUE)),
+                     by = year]
+## ======================================================= ##
+# linear models of rates!
+## ======================================================= ##
+lm_fn <- 
+  function( formula_in, x.name){
+    
+    lm1 <- lm( formula_in) #, weights = weights_in)
+    print( summary( lm1))
+    
+    coef.names <- grepl( x.name, names( coef( lm1)))
+    intercept <- coef( lm1)[ 1]
+    slope <- coef( lm1)[ coef.names]
+    se <- summary( lm1)$coefficients[ coef.names, 'Std. Error']
+    return( list( slope = slope, se = se, intercept = intercept))
+  }
+
+# slopes over time
+slopes_over_time_Y1 <- 
+  dat_annual_use_delt[ year > 2008, 
+                       .( Y1_delt_slope = 
+                            lm_fn( death_rate_delta ~ -1 + as.factor( Y1quantile) + time_count_2000_scale +
+                                     mean_bmi_2000_scale + smoke_rate_2000_scale + hispanic_2000_scale + pct_blk_2000_scale +
+                                     medhouseholdincome_2000_scale + medianhousevalue_2000_scale +
+                                     poverty_2000_scale + education_2000_scale + popdensity_2000_scale + pct_owner_occ_2000_scale +
+                                     summer_tmmx_2000_scale + winter_tmmx_2000_scale + summer_rmax_2000_scale + winter_rmax_2000_scale +
+                                     time_count_delta_scale +
+                                     mean_bmi_delta_scale + smoke_rate_delta_scale + hispanic_delta_scale + pct_blk_delta_scale +
+                                     medhouseholdincome_delta_scale + medianhousevalue_delta_scale +
+                                     poverty_delta_scale + education_delta_scale + popdensity_delta_scale + pct_owner_occ_delta_scale +
+                                     summer_tmmx_delta_scale + winter_tmmx_delta_scale + summer_rmax_delta_scale + winter_rmax_delta_scale +
+                                     as.factor(region)
+                                   , x.name = 'Y1quantile')$slope,
+                          pollutant = 'Coal PM2.5' ),
+                       by = year]
+# slopes over time
+slopes_over_time_Y1_raw <- 
+  dat_annual_use_delt[ year > 2008, 
+                       .( Y1_delt_slope = 
+                            lm_fn( death_rate_delta ~ -1 + as.factor( Y1_rawquantile) + time_count_2000_scale +
+                                     mean_bmi_2000_scale + smoke_rate_2000_scale + hispanic_2000_scale + pct_blk_2000_scale +
+                                     medhouseholdincome_2000_scale + medianhousevalue_2000_scale +
+                                     poverty_2000_scale + education_2000_scale + popdensity_2000_scale + pct_owner_occ_2000_scale +
+                                     summer_tmmx_2000_scale + winter_tmmx_2000_scale + summer_rmax_2000_scale + winter_rmax_2000_scale +
+                                     time_count_delta_scale +
+                                     mean_bmi_delta_scale + smoke_rate_delta_scale + hispanic_delta_scale + pct_blk_delta_scale +
+                                     medhouseholdincome_delta_scale + medianhousevalue_delta_scale +
+                                     poverty_delta_scale + education_delta_scale + popdensity_delta_scale + pct_owner_occ_delta_scale +
+                                     summer_tmmx_delta_scale + winter_tmmx_delta_scale + summer_rmax_delta_scale + winter_rmax_delta_scale +
+                                     as.factor(region)
+                                   , x.name = 'Y1_rawquantile')$slope,
+                          pollutant = 'Raw coal PM2.5' ),
+                       by = year]
+slopes_over_time_PM <- 
+  dat_annual_use_delt[ year > 2008, 
+                       .( Y1_delt_slope = 
+                            lm_fn( death_rate_delta ~ -1 + as.factor( PMquantile) + time_count_2000_scale +
+                                     mean_bmi_2000_scale + smoke_rate_2000_scale + hispanic_2000_scale + pct_blk_2000_scale +
+                                     medhouseholdincome_2000_scale + medianhousevalue_2000_scale +
+                                     poverty_2000_scale + education_2000_scale + popdensity_2000_scale + pct_owner_occ_2000_scale +
+                                     summer_tmmx_2000_scale + winter_tmmx_2000_scale + summer_rmax_2000_scale + winter_rmax_2000_scale +
+                                     time_count_delta_scale +
+                                     mean_bmi_delta_scale + smoke_rate_delta_scale + hispanic_delta_scale + pct_blk_delta_scale +
+                                     medhouseholdincome_delta_scale + medianhousevalue_delta_scale +
+                                     poverty_delta_scale + education_delta_scale + popdensity_delta_scale + pct_owner_occ_delta_scale +
+                                     summer_tmmx_delta_scale + winter_tmmx_delta_scale + summer_rmax_delta_scale + winter_rmax_delta_scale +
+                                     as.factor(region)
+                                   , x.name = 'PMquantile')$slope,
+                          pollutant = 'PM2.5'),
+                       by = year]        
+
+slopes_over_time <- 
+  rbindlist( 
+    list( slopes_over_time_Y1,
+          slopes_over_time_Y1_raw,
+          slopes_over_time_PM) )
+
+slopes_over_time[, quant := rep( 1:20, 8 * 3)]
+
+slopes_over_time_avgs <- 
+  dat_annual_use_delt[ year > 2008, 
+                       .( Y1_delt_slope = 
+                            lm_fn( death_rate_delta ~ Y1quantile + time_count_2000_scale +
+                                     mean_bmi_2000_scale + smoke_rate_2000_scale + hispanic_2000_scale + pct_blk_2000_scale +
+                                     medhouseholdincome_2000_scale + medianhousevalue_2000_scale +
+                                     poverty_2000_scale + education_2000_scale + popdensity_2000_scale + pct_owner_occ_2000_scale +
+                                     summer_tmmx_2000_scale + winter_tmmx_2000_scale + summer_rmax_2000_scale + winter_rmax_2000_scale +
+                                     time_count_delta_scale +
+                                     mean_bmi_delta_scale + smoke_rate_delta_scale + hispanic_delta_scale + pct_blk_delta_scale +
+                                     medhouseholdincome_delta_scale + medianhousevalue_delta_scale +
+                                     poverty_delta_scale + education_delta_scale + popdensity_delta_scale + pct_owner_occ_delta_scale +
+                                     summer_tmmx_delta_scale + winter_tmmx_delta_scale + summer_rmax_delta_scale + winter_rmax_delta_scale#+
+                                   # as.factor(region)
+                                   , x.name = 'Y1quantile')$slope,
+                          Y1_delt_intercept =
+                            lm_fn( death_rate_delta ~ Y1quantile + time_count_2000_scale +
+                                     mean_bmi_2000_scale + smoke_rate_2000_scale + hispanic_2000_scale + pct_blk_2000_scale +
+                                     medhouseholdincome_2000_scale + medianhousevalue_2000_scale +
+                                     poverty_2000_scale + education_2000_scale + popdensity_2000_scale + pct_owner_occ_2000_scale +
+                                     summer_tmmx_2000_scale + winter_tmmx_2000_scale + summer_rmax_2000_scale + winter_rmax_2000_scale +
+                                     time_count_delta_scale +
+                                     mean_bmi_delta_scale + smoke_rate_delta_scale + hispanic_delta_scale + pct_blk_delta_scale +
+                                     medhouseholdincome_delta_scale + medianhousevalue_delta_scale +
+                                     poverty_delta_scale + education_delta_scale + popdensity_delta_scale + pct_owner_occ_delta_scale +
+                                     summer_tmmx_delta_scale + winter_tmmx_delta_scale + summer_rmax_delta_scale + winter_rmax_delta_scale#+
+                                   # as.factor(region)
+                                   , x.name = 'Y1quantile')$intercept#,
+                          # Y1_delt_se =
+                          #   lm_fn( death_rate_delta ~ Y1quantile + time_count_2000_scale +
+                          #            mean_bmi_2000_scale + smoke_rate_2000_scale + hispanic_2000_scale + pct_blk_2000_scale +
+                          #            medhouseholdincome_2000_scale + medianhousevalue_2000_scale +
+                          #            poverty_2000_scale + education_2000_scale + popdensity_2000_scale + pct_owner_occ_2000_scale +
+                          #            summer_tmmx_2000_scale + winter_tmmx_2000_scale + summer_rmax_2000_scale + winter_rmax_2000_scale +
+                          #            time_count_delta_scale +
+                          #            mean_bmi_delta_scale + smoke_rate_delta_scale + hispanic_delta_scale + pct_blk_delta_scale +
+                          #            medhouseholdincome_delta_scale + medianhousevalue_delta_scale +
+                          #            poverty_delta_scale + education_delta_scale + popdensity_delta_scale + pct_owner_occ_delta_scale +
+                          #            summer_tmmx_delta_scale + winter_tmmx_delta_scale + summer_rmax_delta_scale + winter_rmax_delta_scale #+
+                          #          # as.factor(region)
+                          #          , x.name = 'Y1quantile')$se,
+                          # Y1_raw_delt_slope =
+                          #   lm_fn( death_rate_delta ~ Y1_rawquantile + time_count_2000_scale +
+                          #            mean_bmi_2000_scale + smoke_rate_2000_scale + hispanic_2000_scale + pct_blk_2000_scale +
+                          #            medhouseholdincome_2000_scale + medianhousevalue_2000_scale +
+                          #            poverty_2000_scale + education_2000_scale + popdensity_2000_scale + pct_owner_occ_2000_scale +
+                          #            summer_tmmx_2000_scale + winter_tmmx_2000_scale + summer_rmax_2000_scale + winter_rmax_2000_scale +
+                          #            time_count_delta_scale +
+                          #            mean_bmi_delta_scale + smoke_rate_delta_scale + hispanic_delta_scale + pct_blk_delta_scale +
+                          #            medhouseholdincome_delta_scale + medianhousevalue_delta_scale +
+                          #            poverty_delta_scale + education_delta_scale + popdensity_delta_scale + pct_owner_occ_delta_scale +
+                          #            summer_tmmx_delta_scale + winter_tmmx_delta_scale + summer_rmax_delta_scale + winter_rmax_delta_scale#+
+                          #          # as.factor(region)
+                          #          , x.name = 'Y1_rawquantile')$slope,
+                          # Y1_raw_delt_intercept =
+                          #   lm_fn( death_rate_delta ~ Y1_rawquantile + time_count_2000_scale +
+                          #            mean_bmi_2000_scale + smoke_rate_2000_scale + hispanic_2000_scale + pct_blk_2000_scale +
+                          #            medhouseholdincome_2000_scale + medianhousevalue_2000_scale +
+                          #            poverty_2000_scale + education_2000_scale + popdensity_2000_scale + pct_owner_occ_2000_scale +
+                          #            summer_tmmx_2000_scale + winter_tmmx_2000_scale + summer_rmax_2000_scale + winter_rmax_2000_scale +
+                          #            time_count_delta_scale +
+                          #            mean_bmi_delta_scale + smoke_rate_delta_scale + hispanic_delta_scale + pct_blk_delta_scale +
+                          #            medhouseholdincome_delta_scale + medianhousevalue_delta_scale +
+                          #            poverty_delta_scale + education_delta_scale + popdensity_delta_scale + pct_owner_occ_delta_scale +
+                          #            summer_tmmx_delta_scale + winter_tmmx_delta_scale + summer_rmax_delta_scale + winter_rmax_delta_scale#+
+                          #          # as.factor(region)
+                          #          , x.name = 'Y1_rawquantile')$intercept,
+                          # Y1_raw_delt_se =
+                          #   lm_fn( death_rate_delta ~ Y1_rawquantile + time_count_2000_scale +
+                          #            mean_bmi_2000_scale + smoke_rate_2000_scale + hispanic_2000_scale + pct_blk_2000_scale +
+                          #            medhouseholdincome_2000_scale + medianhousevalue_2000_scale +
+                          #            poverty_2000_scale + education_2000_scale + popdensity_2000_scale + pct_owner_occ_2000_scale +
+                          #            summer_tmmx_2000_scale + winter_tmmx_2000_scale + summer_rmax_2000_scale + winter_rmax_2000_scale +
+                          #            time_count_delta_scale +
+                          #            mean_bmi_delta_scale + smoke_rate_delta_scale + hispanic_delta_scale + pct_blk_delta_scale +
+                          #            medhouseholdincome_delta_scale + medianhousevalue_delta_scale +
+                          #            poverty_delta_scale + education_delta_scale + popdensity_delta_scale + pct_owner_occ_delta_scale +
+                          #            summer_tmmx_delta_scale + winter_tmmx_delta_scale + summer_rmax_delta_scale + winter_rmax_delta_scale #+
+                          #          # as.factor(region)
+                          #          , x.name = 'Y1_rawquantile')$se,
+                          # PM_delt_slope =
+                          #   lm_fn( death_rate_delta ~ pm25_ensemble_delta + time_count_2000_scale +
+                          #            mean_bmi_2000_scale + smoke_rate_2000_scale + hispanic_2000_scale + pct_blk_2000_scale +
+                          #            medhouseholdincome_2000_scale + medianhousevalue_2000_scale +
+                          #            poverty_2000_scale + education_2000_scale + popdensity_2000_scale + pct_owner_occ_2000_scale +
+                          #            summer_tmmx_2000_scale + winter_tmmx_2000_scale + summer_rmax_2000_scale + winter_rmax_2000_scale +
+                          #            time_count_delta_scale +
+                          #            mean_bmi_delta_scale + smoke_rate_delta_scale + hispanic_delta_scale + pct_blk_delta_scale +
+                          #            medhouseholdincome_delta_scale + medianhousevalue_delta_scale +
+                          #            poverty_delta_scale + education_delta_scale + popdensity_delta_scale + pct_owner_occ_delta_scale +
+                          #            summer_tmmx_delta_scale + winter_tmmx_delta_scale + summer_rmax_delta_scale + winter_rmax_delta_scale#+
+                          #          # as.factor(region)
+                          #          , x.name = 'pm25_ensemble_delta')$slope,
+                          # PM_delt_intercept =
+                          #   lm_fn( death_rate_delta ~ pm25_ensemble_delta + time_count_2000_scale +
+                          #            mean_bmi_2000_scale + smoke_rate_2000_scale + hispanic_2000_scale + pct_blk_2000_scale +
+                          #            medhouseholdincome_2000_scale + medianhousevalue_2000_scale +
+                          #            poverty_2000_scale + education_2000_scale + popdensity_2000_scale + pct_owner_occ_2000_scale +
+                          #            summer_tmmx_2000_scale + winter_tmmx_2000_scale + summer_rmax_2000_scale + winter_rmax_2000_scale +
+                          #            time_count_delta_scale +
+                          #            mean_bmi_delta_scale + smoke_rate_delta_scale + hispanic_delta_scale + pct_blk_delta_scale +
+                          #            medhouseholdincome_delta_scale + medianhousevalue_delta_scale +
+                          #            poverty_delta_scale + education_delta_scale + popdensity_delta_scale + pct_owner_occ_delta_scale +
+                          #            summer_tmmx_delta_scale + winter_tmmx_delta_scale + summer_rmax_delta_scale + winter_rmax_delta_scale#+
+                          #          # as.factor(region)
+                          #          , x.name = 'pm25_ensemble_delta')$intercept,
+                          # PM_delt_se =
+                          #   lm_fn( death_rate_delta ~ pm25_ensemble_delta + time_count_2000_scale +
+                          #            mean_bmi_2000_scale + smoke_rate_2000_scale + hispanic_2000_scale + pct_blk_2000_scale +
+                          #            medhouseholdincome_2000_scale + medianhousevalue_2000_scale +
+                          #            poverty_2000_scale + education_2000_scale + popdensity_2000_scale + pct_owner_occ_2000_scale +
+                          #            summer_tmmx_2000_scale + winter_tmmx_2000_scale + summer_rmax_2000_scale + winter_rmax_2000_scale +
+                          #            time_count_delta_scale +
+                          #            mean_bmi_delta_scale + smoke_rate_delta_scale + hispanic_delta_scale + pct_blk_delta_scale +
+                          #            medhouseholdincome_delta_scale + medianhousevalue_delta_scale +
+                          #            poverty_delta_scale + education_delta_scale + popdensity_delta_scale + pct_owner_occ_delta_scale +
+                          #            summer_tmmx_delta_scale + winter_tmmx_delta_scale + summer_rmax_delta_scale + winter_rmax_delta_scale#+
+                          #          # as.factor(region)
+                          #          , x.name = 'pm25_ensemble_delta')$se
+                       ), by = year]
+
+slopes_over_time_avgs.m <- 
+  melt( slopes_over_time_avgs,
+        id.vars = 'year')
+slopes_over_time_avgs.m[, variable2 := gsub( '_delt.*', '', variable)]
+pollutants <- c( Y1 = "Coal PM2.5",
+                 Y1_raw = "Raw coal PM2.5",
+                 PM = "PM2.5")
+slopes_over_time_avgs.m[, pollutant := pollutants[variable2]]
+slopes_over_time_avgs.m[, variable3 := gsub( '.*_', '', variable)]
+slopes_over_time_avgs.cast <- 
+  dcast( slopes_over_time_avgs.m, year + pollutant ~ variable3, value.var = 'value')
+  
+
+ggplot( slopes_over_time,
+        aes( x = quant, y = Y1_delt_slope * 10000)) + 
+  geom_smooth( method = 'lm') +
+  # geom_abline( data = slopes_over_time_avgs.cast,
+  #            aes( intercept = intercept * 10000, slope = slope * 10000), color = 'red') +
+  geom_point() + 
+  facet_grid( pollutant ~ year)
+
+
+## ======================================================= ##
+# plots of death rates in areas with highest ventiles
+## ======================================================= ##
+large_zips <- unique( dat_annual_use_delt[ Y1quantile == 1 & time_count_2000 > 1000]$zip)
+length( large_zips)
+
+ggplot( dat_annual_use_delt[zip %in% large_zips],
+        aes( y = death_rate, x = year, group = zip, size = time_count_2000)) + 
+  geom_line( alpha = .1) + 
+  scale_size_continuous( 
+    name = 'Number of Medicare enrollees',
+    range = c( 0.05, 2)) +
+  facet_wrap( . ~ statecode) + 
+  labs( y = 'Annual death rate', x = 'Year') +
+  expand_limits( y = 0) +
+  theme_minimal() + 
+  theme( axis.title = element_text( size = 14),
+         axis.text = element_text( size = 12),
+         legend.position = c( .6, .1),
+         panel.grid.minor = element_blank())
 
 ## ======================================================= ##
 # a slightly different approach—averages from 2000 - 2004 and 2012-2016
 ## ======================================================= ##
+
+
 dat_annual_early <- 
   dat_annual_hy[year %in% 2000:2004, 
                 .( death_rate_early = sum( dead) / sum( time_count), 
@@ -83,15 +372,16 @@ dat_annual_late <-
                    Y1_late = mean( Y1)),
                 by = 'zip']
 
-dat_annual_early[, `:=` (Y1quantile = cut(Y1_early, quantile(Y1_early, probs = 0:10/10),
+dat_annual_early[, `:=` (Y1quantile = cut(Y1_early, quantile(Y1_early, probs = 0:20/20),
                                           labels = FALSE, include.lowest = TRUE),
                          PMquantile = cut(pm25_ensemble_early, quantile(pm25_ensemble_early, 
-                                                                        probs = 0:10/10, na.rm = TRUE),
+                                                                        probs = 0:20/20, na.rm = TRUE),
                                           labels = FALSE, include.lowest = TRUE))]
 
 dat_annual_avgs <- 
   merge( dat_annual_early,
-         dat_annual_late, by = 'zip')
+         dat_annual_late, by = 'zip') %>%
+  merge( )
 
 # calculate differences in exposure & rates from 2000
 dat_annual_avgs[, `:=` ( death_rate_delta = death_rate_late - death_rate_early,
@@ -147,115 +437,5 @@ ggplot( dat_annual_avgs,
   geom_point( alpha = .1) + 
   geom_smooth() +
   theme_bw()
-
-## ======================================================= ##
-# linear models of rates!
-## ======================================================= ##
-lm_fn <- 
-  function( formula_in, x.name){
-    # print( formula_in)
-    
-    lm1 <- lm( formula_in) #, weights = weights_in)
-    slope <- coef( lm1)[x.name]
-    se <- summary( lm1)$coefficients[x.name, 'Std. Error']
-    return( list( slope = slope, se = se))
-  }
-
-# slopes over time
-slopes_over_time <- 
-  dat_annual_use_delt[ year > 2000 ,#& time_count > 1000, 
-                       .( Y1_delt_slope = 
-                            lm_fn( death_rate_delta ~ Y1_delta +
-                                     mean_bmi + smoke_rate + hispanic + pct_blk +
-                                     medhouseholdincome + medianhousevalue +
-                                     poverty + education + popdensity + pct_owner_occ +
-                                     summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
-                                     as.factor(region), x.name = 'Y1_delta')$slope,
-                          Y1_delt_se =
-                            lm_fn( death_rate_delta ~ Y1_delta +
-                                     mean_bmi + smoke_rate + hispanic + pct_blk +
-                                     medhouseholdincome + medianhousevalue +
-                                     poverty + education + popdensity + pct_owner_occ +
-                                     summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
-                                     as.factor(region), x.name = 'Y1_delta')$se,
-                          PM_delt_slope =
-                            lm_fn( death_rate_delta ~ pm25_ensemble_delta +
-                                     mean_bmi + smoke_rate + hispanic + pct_blk +
-                                     medhouseholdincome + medianhousevalue +
-                                     poverty + education + popdensity + pct_owner_occ +
-                                     summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
-                                     as.factor(region), x.name = 'pm25_ensemble_delta')$slope,
-                          PM_delt_se =
-                            lm_fn( death_rate_delta ~ pm25_ensemble_delta +
-                                     mean_bmi + smoke_rate + hispanic + pct_blk +
-                                     medhouseholdincome + medianhousevalue +
-                                     poverty + education + popdensity + pct_owner_occ +
-                                     summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
-                                     as.factor(region), x.name = 'pm25_ensemble_delta')$se
-                       ),
-                       by = year]
-
-
-slopes_over_time_avgs <- 
-  dat_annual_avgs_delt[ ,#time_count > 1000, 
-                        .( Y1_delt_slope = 
-                             lm_fn( death_rate_delta ~ Y1_delta +
-                                      mean_bmi + smoke_rate + hispanic + pct_blk +
-                                      medhouseholdincome + medianhousevalue +
-                                      poverty + education + popdensity + pct_owner_occ +
-                                      summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
-                                      as.factor(region), x.name = 'Y1_delta')$slope,
-                           Y1_delt_se =
-                             lm_fn( death_rate_delta ~ Y1_delta +
-                                      mean_bmi + smoke_rate + hispanic + pct_blk +
-                                      medhouseholdincome + medianhousevalue +
-                                      poverty + education + popdensity + pct_owner_occ +
-                                      summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
-                                      as.factor(region), x.name = 'Y1_delta')$se,
-                           PM_delt_slope =
-                             lm_fn( death_rate_delta ~ pm25_ensemble_delta +
-                                      mean_bmi + smoke_rate + hispanic + pct_blk +
-                                      medhouseholdincome + medianhousevalue +
-                                      poverty + education + popdensity + pct_owner_occ +
-                                      summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
-                                      as.factor(region), x.name = 'pm25_ensemble_delta')$slope,
-                           PM_delt_se =
-                             lm_fn( death_rate_delta ~ pm25_ensemble_delta +
-                                      mean_bmi + smoke_rate + hispanic + pct_blk +
-                                      medhouseholdincome + medianhousevalue +
-                                      poverty + education + popdensity + pct_owner_occ +
-                                      summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
-                                      as.factor(region), x.name = 'pm25_ensemble_delta')$se
-                        )]
-
-summary( lm( death_rate_mean_delta ~ Y1_delta +
-               mean_bmi + smoke_rate + hispanic + pct_blk +
-               medhouseholdincome + medianhousevalue +
-               poverty + education + popdensity + pct_owner_occ +
-               summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
-               as.factor(region), data = dat_annual_avgs_delt, 
-             weights = time_count))
-summary( lm( death_rate_delta ~ pm25_ensemble_delta+
-               mean_bmi + smoke_rate + hispanic + pct_blk +
-               medhouseholdincome + medianhousevalue +
-               poverty + education + popdensity + pct_owner_occ +
-               summer_tmmx + winter_tmmx + summer_rmax + winter_rmax +
-               as.factor(region), data = dat_annual_avgs_delt, weights = time_count))
-
-slopes_over_time.m <- 
-  melt( slopes_over_time,
-        measure.vars = list( 'slope' = c( 'Y1_delt_slope', 'PM_delt_slope'),
-                             'se' = c( 'Y1_delt_se', 'PM_delt_se')),
-        id.vars = 'year')
-
-ggplot( slopes_over_time.m,
-        aes( x = as.factor( year), y = slope, color = variable,
-             ymin = slope - se, ymax = slope + se)) + 
-  geom_errorbar( position = position_dodge( width = .3), width = 0) + 
-  geom_point( position = position_dodge( width = .3)) + 
-  scale_color_brewer( palette = 'Dark2', 
-                      labels = c( '1' = 'coal PM2.5',
-                                  '2' = 'PM2.5'))
-
 
 
