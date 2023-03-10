@@ -29,6 +29,10 @@ dead_personyear <-
 aggregate_pm25 <- 
   aggregate_data[, .( zip, year, pm25_ensemble)] %>% unique
 
+# match data used to fit models
+dat_annual <- read_fst( file.path(dir_data, "cache_data", 'hyads_pm25_annual.fst'),
+                        columns = c('zip','year', 'Y1', 'Y1.adj', 'Y1_raw'), as.data.table = TRUE)
+
 rm( aggregate_data)
 
 ## ====================================================== ##
@@ -123,7 +127,22 @@ beta_ci.dt <-
   dcast( beta_ci, model ~ ci, value.var = 'value') %>%
   rbind( betas_kr)
 
-exp( beta_ci.dt[ model %in% c( 'hyads_dpm', 'hyads_pollutants_no_o3'), .( low, mid, high)])
+## ==================================================== ##
+##  Check out some of the betas
+## ==================================================== ##
+# hyads, adj. by rPM; by NO2; by rPM & NO2
+beta_ci.dt[ , lapply( .SD, function( x) round( exp(x), 4)),
+                 .SDcols = c( 'mid', 'low', 'high'),
+                 by = model]
+
+# check RR for hyads & raw hyads per standard deviation
+sd_hyads <- sd( dat_annual$Y1)
+sd_hyads_raw <- sd( dat_annual$Y1_raw)
+
+exp( beta_ci.dt[ model %in% c( 'hyads'), .( low, mid, high)] * sd_hyads)
+exp( beta_ci.dt[ model %in% c( 'hyads_raw'), .( low, mid, high)] * sd_hyads_raw)
+
+
 ## ==================================================== ##
 ##  Read in the ZIP code spatial inputs (State variable)
 ## ==================================================== ##
@@ -152,7 +171,7 @@ dat_year_fill <- merge( dat_year_fill,
                         zips[, .( zip, STATE)], by = 'zip', all.x = T)
 
 write.fst( dat_year_fill,
-           'data/cache_data/dat_year_fill.fst')
+           'data/data/cache_data/dat_year_fill.fst')
 ## ====================================================== ##
 # sum deaths by state & year as input for adjoint comparison
 ## ====================================================== ##
@@ -160,7 +179,7 @@ sum_deaths_year <- dat_year_fill[, .( deaths.fill = sum( deaths.fill, na.rm = T)
                                       denom.fill = sum( denom.fill, na.rm = T)),
                                  by = .( year, STATE)]
 write.fst( sum_deaths_year,
-           'data/cache_data/total_deaths_by_state_year.fst')
+           'data/data/cache_data/total_deaths_by_state_year.fst')
 #
 ## ====================================================== ##
 # fix deaths/rates and hyads at 1999 levels
@@ -223,8 +242,8 @@ death_calculator <-
   }
 
 # seperate betas that are hyads.adj or raw hyads
-betas_hyads.adj <- c( 'hyads.adj', 'hyads.adj_dpm', 'hyads.adj_pm')
-betas_hyads_raw <- c( 'hyads_raw_pollutants_no_o3')
+betas_hyads.adj <- c( 'hyads.adj')
+betas_hyads_raw <- c( 'hyads_raw')
 
 deaths_by_year_all <- 
   lapply( beta_ci.dt$model[!(beta_ci.dt$model %in% betas_hyads.adj | 
@@ -259,10 +278,14 @@ setnames( deaths_by_year_all.c, unique( deaths_by_year_state_all$beta),
           paste0( 'deaths_coef_', unique( deaths_by_year_state_all$beta)))
 
 # check sums
-deaths_by_year_all.c[ model == 'hyads', sum( deaths_coef_2)]
-deaths_by_year_all.c[ model == 'hyads.adj', sum( deaths_coef_1)]
-deaths_by_year_all.c[ model == 'hyads.adj', sum( deaths_coef_2)]
-deaths_by_year_all.c[ model == 'hyads.adj', sum( deaths_coef_3)]
+c( 
+  low = deaths_by_year_all.c[ model == 'hyads', sum( deaths_coef_1)],
+  mid = deaths_by_year_all.c[ model == 'hyads', sum( deaths_coef_2)],
+  high = deaths_by_year_all.c[ model == 'hyads', sum( deaths_coef_3)])
+c( 
+  low = deaths_by_year_all.c[ model == 'hyads_raw', sum( deaths_coef_1)],
+  mid = deaths_by_year_all.c[ model == 'hyads_raw', sum( deaths_coef_2)],
+  high = deaths_by_year_all.c[ model == 'hyads_raw', sum( deaths_coef_3)])
 
 # save it
 write.fst( deaths_by_year_all.c, paste0(dir_out, "deaths_by_year_total_coal_pm25.fst"))
@@ -421,7 +444,7 @@ risk_assessmenter <- function( n, fyms, model_n, cuts.n = 2){
                             fulldata = copy( hyads.in.medi.u),
                             by.vars = c( 'zip', 'STATE', 'variable')) 
         
-      
+        
         # sum each unit's deaths
         out.2 <- deaths_by_zip_unit_year[, .( 
           deaths_coef   = sum( deaths_coef, na.rm = T)),

@@ -30,6 +30,12 @@ deaths_by_year_unit <-
 deaths_by_state_year_all <- read.fst(paste0(dir_out, "deaths_by_year_total_coal_pm25.fst"), as.data.table = TRUE)
 deaths_by_state_year_all_pm25 <- read.fst(paste0(dir_out, "deaths_by_year_total_pm25_ensemble.fst"), as.data.table = TRUE)
 
+## ======================================================= ##
+# load hyads data
+## ======================================================= ##
+dat_annual <- read_fst( file.path(dir_data, "cache_data", 'hyads_pm25_annual.fst'),
+                        columns = c('zip','year', 'Y1', 'Y1.adj', 'Y1_raw'), as.data.table = TRUE)
+
 ## ================================================== ##
 # give states a bin ##REMINDER--check Washington, DC!
 ## ================================================== ##
@@ -844,6 +850,23 @@ ggsave( 'figures/hyads_trends.png', gg_combine,
         width = 14, height = 5, scale = 1.2)
 
 
+
+## ================================================= ##
+#  plot hyads vs raw hyads
+## ================================================= ##
+gg_raw_hyads_vs_coal_pm <- 
+  ggplot( dat_annual[ year %in% c( 1999, 2006, 2011, 2020)],
+          aes( x = Y1_raw, y = Y1)) + 
+  geom_point( size = .1, alpha = .1) +
+  labs( x = "Raw HyADS [unitless]", y = expression(Coal~PM['2.5']~'[µg '~m^{'-3'}*']')) +
+  facet_wrap( . ~ year, nrow = 1) + 
+  theme_minimal() + 
+  theme( axis.text = element_text( size = 12),
+         axis.title = element_text( size = 14),
+         strip.text = element_text( size = 14))
+
+
+
 ## ================================================= ##
 #  plot other pollutants
 ## ================================================= ##
@@ -1230,7 +1253,7 @@ dat_bar[, plot := 'bar']
 
 dat.melt_point <- 
   rbind( dat_point, dat_bar, fill = TRUE)
-  
+
 
 ggplot( ) + 
   scale_y_discrete( labels = scales::label_parse()) +
@@ -1246,7 +1269,7 @@ ggplot( ) +
                   data = dat.melt_point[plot == 'point']) +
   geom_col( aes( y = descriptor2,
                  x = deaths_coef_2 / 10000),
-              data = dat.melt_point[plot == 'bar']) + 
+            data = dat.melt_point[plot == 'bar']) + 
   # facet_grid2(  descriptor1 ~ facet, scales = "free",
   #               labeller = label_parsed, space = 'free'
   #               # dir = 'h'
@@ -1255,7 +1278,7 @@ ggplot( ) +
   #                  # rows = c(0.5),
   #                  respect = TRUE) +
   facet_grid( descriptor1 ~ plot, scales = "free",
-                      space = "free",
+              space = "free",
               labeller = label_parsed) +
   # ggforce::facet_row( descriptor1 ~ plot, scales = "free_y",
   #                     space = "free", labeller = label_parsed) +
