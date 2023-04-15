@@ -144,41 +144,6 @@ slopes_over_time_Y1 <-
                                    , x.name = 'Y1quantile')$slope,
                           pollutant = 'Coal PM2.5' ),
                        by = year]
-# slopes over time
-# slopes_over_time_Y1_raw <- 
-#   dat_annual_use_delt[ year > 2008, 
-#                        .( Y1_delt_slope = 
-#                             lm_fn( death_rate_delta ~ -1 + as.factor( Y1_rawquantile) + time_count_2000_scale +
-#                                      mean_bmi_2000_scale + smoke_rate_2000_scale + hispanic_2000_scale + pct_blk_2000_scale +
-#                                      medhouseholdincome_2000_scale + medianhousevalue_2000_scale +
-#                                      poverty_2000_scale + education_2000_scale + popdensity_2000_scale + pct_owner_occ_2000_scale +
-#                                      summer_tmmx_2000_scale + winter_tmmx_2000_scale + summer_rmax_2000_scale + winter_rmax_2000_scale +
-#                                      time_count_delta_scale +
-#                                      mean_bmi_delta_scale + smoke_rate_delta_scale + hispanic_delta_scale + pct_blk_delta_scale +
-#                                      medhouseholdincome_delta_scale + medianhousevalue_delta_scale +
-#                                      poverty_delta_scale + education_delta_scale + popdensity_delta_scale + pct_owner_occ_delta_scale +
-#                                      summer_tmmx_delta_scale + winter_tmmx_delta_scale + summer_rmax_delta_scale + winter_rmax_delta_scale +
-#                                      as.factor(region)
-#                                    , x.name = 'Y1_rawquantile')$slope,
-#                           pollutant = 'Raw coal PM2.5' ),
-#                        by = year]
-# slopes_over_time_PM <- 
-#   dat_annual_use_delt[ year > 2008, 
-#                        .( Y1_delt_slope = 
-#                             lm_fn( death_rate_delta ~ -1 + as.factor( PMquantile) + time_count_2000_scale +
-#                                      mean_bmi_2000_scale + smoke_rate_2000_scale + hispanic_2000_scale + pct_blk_2000_scale +
-#                                      medhouseholdincome_2000_scale + medianhousevalue_2000_scale +
-#                                      poverty_2000_scale + education_2000_scale + popdensity_2000_scale + pct_owner_occ_2000_scale +
-#                                      summer_tmmx_2000_scale + winter_tmmx_2000_scale + summer_rmax_2000_scale + winter_rmax_2000_scale +
-#                                      time_count_delta_scale +
-#                                      mean_bmi_delta_scale + smoke_rate_delta_scale + hispanic_delta_scale + pct_blk_delta_scale +
-#                                      medhouseholdincome_delta_scale + medianhousevalue_delta_scale +
-#                                      poverty_delta_scale + education_delta_scale + popdensity_delta_scale + pct_owner_occ_delta_scale +
-#                                      summer_tmmx_delta_scale + winter_tmmx_delta_scale + summer_rmax_delta_scale + winter_rmax_delta_scale +
-#                                      as.factor(region)
-#                                    , x.name = 'PMquantile')$slope,
-#                           pollutant = 'PM2.5'),
-#                        by = year]        
 
 slopes_over_time <- 
   rbindlist( 
@@ -187,8 +152,16 @@ slopes_over_time <-
           # slopes_over_time_PM
     ) )
 
-slopes_over_time[, quant := rep( 1:20, 8)]
+slopes_over_time[, quant := rep( 20:1, 8)]
 
+# check slopes and p values in each year
+slopes_sig <- 
+  slopes_over_time[, .( slope = coef( lm( Y1_delt_slope ~ quant))['quant'],
+                        p.val = summary( lm( Y1_delt_slope ~ quant))$coef[2, 'Pr(>|t|)']), by = year]
+
+# label the years that are statistically significant
+slopes_over_time[, year_star := as.character( year)]
+slopes_over_time[ year %in% slopes_sig[p.val < 0.05]$year, year_star := paste0( year, '*')]
 
 gg_first_diffs <- 
   ggplot( slopes_over_time,
@@ -196,9 +169,9 @@ gg_first_diffs <-
   geom_hline( yintercept = 0) +
   geom_smooth( method = 'lm') +
   labs( y = 'Change in mortality rate per 10,000 since 2000',
-        x = 'Exposure change quantile (larger reductions to the left)') +
+        x = 'Exposure change quantile (larger reductions to the right)') +
   geom_point() + 
-  facet_grid( . ~ year) + 
+  facet_grid( . ~ year_star) + 
   expand_limits( y = 0) +
   theme_minimal() +
   theme( axis.text = element_text( size = 12),
@@ -220,17 +193,17 @@ dat_annual_use_delt[, state_name := state.name[which( state.abb == statecode)]]
 
 labeller_state <- 
   function( abb){
-   df.out <-  lapply( abb[,1], function(a) {
+    df.out <-  lapply( abb[,1], function(a) {
       state.name[which( state.abb == a)] %>% data.frame
     }) %>% rbindlist()
-   colnames( df.out) <- 'statecode'
-   return( df.out)
+    colnames( df.out) <- 'statecode'
+    return( df.out)
   }
 
 gg_zips_rates <- 
   ggplot( dat_annual_use_delt[zip %in% large_zips],
           aes( y = death_rate, x = year, group = zip#, linewidth = time_count_2000
-               )) + 
+          )) + 
   geom_line( alpha = .1) + 
   scale_size_continuous( 
     name = 'Number of Medicare enrollees',

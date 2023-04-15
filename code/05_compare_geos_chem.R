@@ -11,7 +11,7 @@ library( magrittr)
 ## Load adjoint runs, perform rankings, merge
 ## =========================================================== ##
 
-read.adj <- function( base.dir = 'data/adjoint_results'){
+read.adj <- function( base.dir = 'data/data/adjoint_results'){
   
   # ID directory, list files
   adj.dir <- file.path( base.dir)
@@ -73,7 +73,7 @@ irene_adj <- read.adj( )[state == 'US']
 ## ================================================== ##
 # read population data and merge with adjoint
 ## ================================================== ##
-us_states.pop.dt.m <- fread( 'data/us_population_by_state_2006_2011.csv',
+us_states.pop.dt.m <- fread( 'data/data/us_population_by_state_2006_2011.csv',
                              drop = 'V1')
 
 ## merge populations with adjoint
@@ -88,7 +88,7 @@ irene_adj_pop[ year == 2011, pop := 307602241]
 ## ================================================== ##
 # read in facility info
 info.list <- c( 'Facility.Name', 'Facility.ID..ORISPL.', 'Unit.ID', 'State')
-facility_info <- fread( '~/shared_space/ci3_nsaph/LucasH/RFM_health/inputs/Coal_facilities/AMPD_Unit.csv',
+facility_info <- fread( file.path( dir_data, 'AMPD_Unit.csv'),
                         select = info.list) %>% unique
 setnames( facility_info, 
           c( 'Facility.ID..ORISPL.', 'Unit.ID'), 
@@ -104,7 +104,7 @@ irene_adj_pop_fac <- merge( irene_adj_pop, facility_info, by = 'uID')
 ## ===============================================
 #  Do the deaths by units calculation
 ## ===============================================
-tot_deaths_by_state_year <- read.fst( 'data/cache_data/total_deaths_by_state_year.fst',
+tot_deaths_by_state_year <- read.fst( 'data/data/cache_data/total_deaths_by_state_year.fst',
                                       as.data.table = T)
 setnames( tot_deaths_by_state_year, 'STATE', 'state')
 
@@ -124,7 +124,7 @@ irene_adj_pop_fac_tot <- merge( irene_adj_pop_fac, tot_deaths_by_state_year,
 ## ====================================================== ##
 dir_out <- 'results/'
 
-dat_year_fill <- read.fst( 'data/cache_data/dat_year_fill.fst')
+dat_year_fill <- read.fst( 'data/data/cache_data/dat_year_fill.fst')
 num_uniq_zip <- length( unique( dat_year_fill$zip))
 
 # read in the coefficients
@@ -173,11 +173,11 @@ irene_adj_fac <- irene_adj_pop_fac_tot[, .( deaths_adj_1 = sum( deaths_adj_1),
 #  Read in hyads death data for comparison
 ## ===============================================
 # load rdata with tables of deaths attributed to various geographies/facilities
-load( 'data/cache_data/annual_deaths_by.RData')
+load( 'data/data/cache_data/annual_deaths_by.RData')
 
 # merge hyads death predictions with adjoint
 h_adj <- merge( irene_adj_fac, 
-                deaths_by_year_fac_statebinf[model == 'hyads'], 
+                deaths_by_year_fac_statebinf[model %in% c( 'hyads', 'hyads_raw')], 
                 by = c( 'FacID', 'year'))
 
 # calculate regressions
@@ -190,7 +190,7 @@ h_adj_lm <- h_adj[, .( N = .N,
                        nmb = ( 1 / sum( deaths_adj_2)) * sum( deaths_coef_2 - deaths_adj_2),
                        nme = ( 1 / sum( deaths_adj_2)) * sum( abs( deaths_coef_2 - deaths_adj_2)),
                        rmse = sqrt( ( 1 / .N) * sum( ( ( deaths_coef_2 - mean( deaths_coef_2)) - ( deaths_adj_2 - mean( deaths_adj_2))) ^ 2) ) ),
-                  by = .( statebin_facility, year)]
+                  by = .( statebin_facility, year, model)]
 h_adj_us <- h_adj[, .( N = .N,
                        int = coef( summary( lm( deaths_coef_2 ~ deaths_adj_2)))['(Intercept)','Estimate'],
                        int.se = coef( summary( lm( deaths_coef_2 ~ deaths_adj_2)))['(Intercept)','Std. Error'],
@@ -200,7 +200,7 @@ h_adj_us <- h_adj[, .( N = .N,
                        nmb = ( 1 / sum( deaths_adj_2)) * sum( deaths_coef_2 - deaths_adj_2),
                        nme = ( 1 / sum( deaths_adj_2)) * sum( abs( deaths_coef_2 - deaths_adj_2)),
                        rmse = sqrt( ( 1 / .N) * sum( ( ( deaths_coef_2 - mean( deaths_coef_2)) - ( deaths_adj_2 - mean( deaths_adj_2))) ^ 2) ) ),
-                  by = .( year)]
+                  by = .( year, model)]
 
 h_adj_lm_out <- h_adj_lm[, .( N = N,
                               Intercept = paste( sprintf( '%.1f', int), '±', sprintf( '%.0f', int.se)),
@@ -209,7 +209,7 @@ h_adj_lm_out <- h_adj_lm[, .( N = N,
                               NMB = scales::percent( nmb),
                               NME = scales::percent( nme),
                               RMSE = sprintf( '%.0f', rmse)),
-                         by = .( statebin_facility, year)]
+                         by = .( statebin_facility, year, model)]
 h_adj_lm_out_us <- h_adj_us[, .( N = N,
                               Intercept = paste( sprintf( '%.1f', int), '±', sprintf( '%.0f', int.se)),
                               Slope = paste( sprintf( '%.2f', slo), '±', sprintf( '%.2f', slo.se)),
@@ -217,7 +217,7 @@ h_adj_lm_out_us <- h_adj_us[, .( N = N,
                               NMB = scales::percent( nmb),
                               NME = scales::percent( nme),
                               RMSE = sprintf( '%.0f', rmse)),
-                         by = .( year)]
+                         by = .( year, model)]
 
 rbind( h_adj_lm_out_us,
        h_adj_lm_out, fill = T)
@@ -227,33 +227,40 @@ sum_cols <- c( 'deaths_adj_1', 'deaths_adj_2', 'deaths_adj_3',
                'deaths_coef_1', 'deaths_coef_2', 'deaths_coef_3')
 h_adj[, lapply( .SD, sum),
       .SDcols = sum_cols,
-      by = .( year)]
+      by = .( year, model)]
 
 ## ===============================================
 #  facility deaths comparisons
 ## ===============================================
 geos_chem_eval_plot <- 
-  ggplot( h_adj[model == 'hyads'], 
-          aes( y = deaths_coef_2, x = deaths_adj_2)) + 
+  ggplot( h_adj, #[model == 'hyads'], 
+          aes( y = deaths_coef_2, x = deaths_adj_2, color = model)) + 
   geom_abline( slope = 1, intercept = 0, size = .25) + 
-  geom_errorbar( aes( ymin = deaths_coef_1, ymax = deaths_coef_3), size = 1) +
-  geom_errorbarh( aes( xmin = deaths_adj_1, xmax = deaths_adj_3), size = 1) +
-  geom_smooth( formula = y ~ x, method = 'lm', se = T, fullrange = T, size = .5) +
-  labs( y = expression( HyADS~Coal~PM[2.5]), x = 'GEOS-Chem Adjoint') +
+  geom_errorbar( aes( ymin = deaths_coef_1, ymax = deaths_coef_3), linewidth = 1) +
+  geom_errorbarh( aes( xmin = deaths_adj_1, xmax = deaths_adj_3), linewidth = 1) +
+  geom_smooth( formula = y ~ x, method = 'lm', se = FALSE, fullrange = T, 
+               linewidth = .5) +
+  labs( y = 'HyADS excess deaths', x = 'GEOS-Chem Adjoint excess deaths') +
   coord_cartesian( xlim = c( .01, max( h_adj$deaths_coef_3, h_adj$deaths_adj_3)),
                    ylim = c( .01, max( h_adj$deaths_coef_3, h_adj$deaths_adj_3))) +
-  # scale_x_log10( ) + 
-  # scale_y_log10( ) + 
+  # scale_x_log10( ) +
+  # scale_y_log10( ) +
+  scale_color_brewer( palette = 'Dark2',
+                      labels = c( 'hyads' = expression( HyADS~Coal~PM[2.5]),
+                                  'hyads_raw' = 'HyADS (unscaled)')) +
   facet_grid( year ~ statebin_facility,
               switch = 'y') + 
   theme_bw() + 
   theme( axis.text = element_text( size = 12),
          axis.text.x = element_text( angle = 30),
          axis.title = element_text( size = 18),
+         legend.position = c( .93, .9),
+         legend.text = element_text( size = 12),
+         legend.title = element_blank(),
          strip.background = element_blank(),
          strip.placement = 'outside',
          strip.text = element_text( size = 18))
-
+geos_chem_eval_plot
 ggsave( 'figures/geos_chem_eval_region_deaths.png',
         geos_chem_eval_plot, height = 4, width = 10, 
         unit = 'in', scale = 1.75)
