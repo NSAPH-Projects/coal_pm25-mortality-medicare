@@ -170,14 +170,18 @@ gg_first_diffs <-
   geom_smooth( method = 'lm') +
   labs( y = 'Change in mortality rate per 10,000 since 2000',
         x = 'Exposure change quantile (larger reductions to the right)') +
+  labs( subtitle ="*Statistically significant trend (p < 0.05)") +
   geom_point() + 
   facet_grid( . ~ year_star) + 
-  expand_limits( y = 0) +
+  scale_y_continuous( limits = c( NA, 0)) +
+  # expand_limits( y = 0) +
   theme_minimal() +
   theme( axis.text = element_text( size = 12),
          axis.text.x = element_blank(),
          axis.title = element_text( size = 14),
+         plot.subtitle = element_text( hjust = 1, vjust = -13, ),
          strip.text = element_text( size = 14))
+gg_first_diffs
 ggsave( gg_first_diffs,
         filename = 'figures/first_diffs_since_2000.pdf',
         height = 5, width = 10, unit = 'in', device = cairo_pdf)
