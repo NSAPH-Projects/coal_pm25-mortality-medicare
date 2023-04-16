@@ -14,15 +14,18 @@ dir_out <- 'results/'
 #  load and manipulate deaths data
 ## ================================================== ##
 deaths_by_year_unit.hy <- read.fst( paste0(dir_out, "deaths_by_year_hyRR.fst"), as.data.table = TRUE)
+deaths_by_year_unit.hy_raw <- read.fst( paste0(dir_out, "deaths_by_year_hy_rawRR.fst"), as.data.table = TRUE)
 deaths_by_year_unit.pm <- read.fst( paste0(dir_out, "deaths_by_year_pmRR.fst"), as.data.table = TRUE)
 deaths_by_year_unit.kr <- read.fst( paste0(dir_out, "deaths_by_year_krRR.fst"), as.data.table = TRUE)
 
 # combine into single data.table
 deaths_by_year_unit.hy[, model := 'hyads']
+deaths_by_year_unit.hy_raw[, model := 'hyads_raw']
 deaths_by_year_unit.pm[, model := 'pm25_ensemble']
 deaths_by_year_unit.kr[, model := 'pm25_krewski']
 deaths_by_year_unit <- 
   rbind( deaths_by_year_unit.hy, 
+         deaths_by_year_unit.hy_raw, 
          deaths_by_year_unit.pm,
          deaths_by_year_unit.kr)
 
@@ -106,8 +109,9 @@ unit.states <- merge( facility_info, state_bins, by = 'state')[!duplicated( uID)
 deaths_by_year_unit[, uID := gsub( '^X', '', variable)]
 
 # merge with emissions and states
-deaths_and_units <- merge( deaths_by_year_unit, unit.states, by = c( 'uID')) #, all.x = TRUE)
-deaths_and_units <- merge( deaths_and_units, state_bins_zips, by = c( 'STATE'))
+deaths_and_units <- 
+  merge( deaths_by_year_unit, unit.states, by = c( 'uID')) %>%
+  merge( state_bins_zips, by = c( 'STATE'))
 
 # clarify state names
 setnames( deaths_and_units,
@@ -865,6 +869,9 @@ gg_raw_hyads_vs_coal_pm <-
          axis.title = element_text( size = 14),
          strip.text = element_text( size = 14))
 
+ggsave( gg_raw_hyads_vs_coal_pm,
+        filename = 'figures/raw_hyads_vs_coal_pm.pdf',
+        height = 3, width = 10, unit = 'in', device = cairo_pdf)
 
 
 ## ================================================= ##
@@ -1071,7 +1078,7 @@ deaths_all <- deaths_by_year[model == 'hyads',
 deaths_all / medicare_deaths_all
 
 # deaths in all years
-deaths_by_year[model == 'hyads' & year <= 2005, 
+deaths_by_year[model == 'hyads' & year <= 2007, 
                lapply( .SD, sum),
                .SDcols = sum_cols]# / length( 1999:2005)
 deaths_by_year[model == 'hyads' & year == 2020, 

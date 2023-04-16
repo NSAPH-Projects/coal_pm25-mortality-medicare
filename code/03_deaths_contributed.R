@@ -378,20 +378,22 @@ fwrite( deaths_by_year_sensitivities.c,
 ## ====================================================== ##
 # get filenames for unit-level coal PM2.5
 ## ====================================================== ##
-# set directory structure
-disperseR.base <- '/nfs/home/H/henneman/shared_space/ci3_nsaph/LucasH/disperseR/'
-disperseR::create_dirs( disperseR.base)
-
 # define pm25 exposure directory
+exp_dir <- '/n/dominici_nsaph_l3/Lab/projects/analytic/coal_exposure_pm25/zips'
 exp25_dir <- '/n/dominici_nsaph_l3/Lab/projects/analytic/coal_exposure_pm25/zips_model.lm.cv_single_poly'
 
 # get files for unit-specific hyads
 zip.units.yr <- list.files( exp25_dir,
                             pattern = 'zips_.*byunit.*\\d{4}\\.fst',
                             full.names = TRUE)
+zip.units.yr_raw <- list.files( exp_dir,
+                            pattern = 'zips_.*byunit.*\\d{4}\\.fst',
+                            full.names = TRUE)
 
 # put together data.table for easy reference
 zip.units.yr.dt <- data.table( f = zip.units.yr,
+                               y = 1999:2020)
+zip.units.yr.dt_raw <- data.table( f = zip.units.yr_raw,
                                y = 1999:2020)
 ## ====================================================== ##
 # do the risk assessment
@@ -400,7 +402,10 @@ zip.units.yr.dt <- data.table( f = zip.units.yr,
 # cuts defines number of units run at a time
 # cuts = 2 seems to work okay for 100 samples per zip
 # cuts = 10 seems to work okay for 3 samples per zip
-risk_assessmenter <- function( n, fyms, model_n, cuts.n = 2){
+risk_assessmenter <- function( n, fyms, 
+                               model_n, 
+                               scale_by = NULL,
+                               cuts.n = 2){
   print( n)
   # message( paste( 'Mem used is', mem_used()))
   fym <- fyms[n]
@@ -428,6 +433,11 @@ risk_assessmenter <- function( n, fyms, model_n, cuts.n = 2){
   # trim down
   hyads.in.medi.m <- hyads.in.medi.m[ deaths.fill != 0 & 
                                         !is.na( deaths.fill)]
+  
+  # scale if called for
+  if( !is.null( scale_by))
+    hyads.in.medi.m[, value := value / scale_by]
+  
   # print( hyads.in.medi.m)
   # do the risk assessment for each unit
   deaths_by_unit <- 
@@ -494,5 +504,13 @@ deaths_by_year_kr <- lapply( 1:nrow( zip.units.yr.dt),
                              model_n = 'hyads',
                              cuts.n = 75) %>% rbindlist
 write.fst(deaths_by_year_kr, paste0(dir_out, "deaths_by_year_krRR.fst"))
+
+deaths_by_year_raw <- lapply( 1:nrow( zip.units.yr.dt_raw), 
+                          risk_assessmenter,
+                          fyms = zip.units.yr.dt_raw,
+                          model_n = 'hyads_raw',
+                          scale_by = 1318896214, # comes from mean(hyads_zips_tot_raw$hyads in 00_organize_data.R)
+                          cuts.n = 75) %>% rbindlist
+write.fst(deaths_by_year_raw, paste0(dir_out, "deaths_by_year_hy_rawRR.fst"))
 
 
