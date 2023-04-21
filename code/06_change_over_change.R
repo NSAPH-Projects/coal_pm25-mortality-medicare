@@ -169,7 +169,7 @@ gg_first_diffs <-
   geom_hline( yintercept = 0) +
   geom_smooth( method = 'lm') +
   labs( y = 'Change in mortality rate per 10,000 since 2000',
-        x = expression( Coal~PM['2.5']~change~quantile~(larger~reductions~to~the~right))) +
+        x = expression( Coal~PM['2.5']~change~since~2000~quantile~(larger~reductions~to~the~right))) +
   labs( subtitle ="*Statistically significant trend (p < 0.05)") +
   geom_point() + 
   facet_grid( . ~ year_star) + 
