@@ -221,7 +221,7 @@ modnames <- c(   'hyads' = expression( Coal~PM[2.5]~(this~study)),
                  'pm25_krewski' = expression( PM[2.5]~(Krewski~et~al.*','~2008)))
 
 deaths_year.gg <-
-  ggplot( deaths_by_year,
+  ggplot( deaths_by_year[model %in% names( modnames)],
           aes( x = year,
                # fill = model
           )) + 
@@ -239,7 +239,7 @@ deaths_year.gg <-
                        pattern_fill = 'grey50',
                        alpha = .8) + 
   scale_pattern_angle_discrete( labels = modnames,
-                                name = 'Risk Ratio source') + 
+                                name = 'Risk Ratio') + 
   labs( y = 'Annual Excess Deaths (10,000)') +
   # coord_cartesian( ylim = c( 0, NULL)) +
   theme_bw() + 
