@@ -6,6 +6,7 @@ library( magrittr)
 library( viridis)
 library( ggrepel)
 library( ggpattern)
+library( magick)
 
 dir_data <- 'data/data' 
 dir_out <- 'results/'
@@ -371,10 +372,6 @@ deaths_by_fac_year_statebin_lab[, FacID := factor( FacID, levels = rev( unique( 
 deaths_by_fac_info.lab[, FacID := factor( FacID, levels = rev( unique( deaths_by_fac_statebinf$FacID)))]
 deaths_by_fac_info.lab[, statebin_lab := factor( statebin_lab, levels = levels( deaths_by_statebinf$statebin_lab))]
 
-2866, 1733
-sammis, monroe
-
-deaths_by_fac_year_statebin_lab[model == 'hyads' & FacID %in% c( 2866, 1733)]
 
 ## ================================================== ##
 # save some of the data 
@@ -480,7 +477,7 @@ gg_bardeaths <-
          panel.grid.major.y = element_blank(),
          # plot.margin = unit(c(.1,2,.1,.1), "lines"),
          panel.spacing = unit( 0.1, 'cm'),
-         plot.background = element_blank(),
+         # plot.background = element_blank(),
          strip.background = element_blank(),
          strip.text = element_text( size = 16, 
                                     margin = margin( 0, 0, 0, 0)),
@@ -583,6 +580,16 @@ ggsave( 'figures/emissions_hex_plot.png',
 ggsave( 'figures/emissions_hex_plot.pdf',
         map_emissions, device = cairo_pdf,
         height = 2.9, width = 5, unit = 'in', scale = 1.6)
+
+# add it to bardeaths plot
+bardeaths_in <- image_read('figures/deaths_coal_pm25_unit_year.png')
+map_emissions_in <- image_read('figures/emissions_hex_plot.png')
+
+image_composite( bardeaths_in, 
+                 image_scale( map_emissions_in, 'x1380'),
+                 offset = "+4350+2850") %>%
+  image_write( path = "figures/deaths_hyads_unit_year_map.png")
+
 
 ## ================================================== ##
 # plot specific facilities change over time
