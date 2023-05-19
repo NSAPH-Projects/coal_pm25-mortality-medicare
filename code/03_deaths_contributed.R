@@ -484,7 +484,7 @@ risk_assessmenter <- function( n, fyms,
 # ============================================== #
 # 100gb, 10 core
 # hyads, zip-code betas
-deaths_by_year <- lapply( 1, #:nrow( zip.units.yr.dt), 
+deaths_by_year <- lapply( 1:nrow( zip.units.yr.dt), 
                           risk_assessmenter,
                           fyms = zip.units.yr.dt,
                           model_n = 'hyads',
@@ -501,7 +501,7 @@ write.fst(deaths_by_year_pm, paste0(dir_out, "deaths_by_year_pmRR.fst"))
 deaths_by_year_kr <- lapply( 1:nrow( zip.units.yr.dt), 
                              risk_assessmenter,
                              fyms = zip.units.yr.dt,
-                             model_n = 'hyads',
+                             model_n = 'krewski',
                              cuts.n = 75) %>% rbindlist
 write.fst(deaths_by_year_kr, paste0(dir_out, "deaths_by_year_krRR.fst"))
 

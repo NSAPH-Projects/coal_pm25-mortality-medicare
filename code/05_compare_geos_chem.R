@@ -220,7 +220,7 @@ h_adj_lm_out_us <- h_adj_us[, .( N = N,
                          by = .( year, model)]
 
 rbind( h_adj_lm_out_us,
-       h_adj_lm_out, fill = T)
+       h_adj_lm_out, fill = T)[model == 'hyads']
 
 # get the annual results
 sum_cols <- c( 'deaths_adj_1', 'deaths_adj_2', 'deaths_adj_3',
@@ -233,16 +233,16 @@ h_adj[, lapply( .SD, sum),
 #  facility deaths comparisons
 ## ===============================================
 geos_chem_eval_plot <- 
-  ggplot( h_adj, #[model == 'hyads'], 
-          aes( y = deaths_coef_2, x = deaths_adj_2, color = model)) + 
+  ggplot( h_adj[model == 'hyads'], 
+          aes( y = deaths_coef_2, x = deaths_adj_2)) + 
   geom_abline( slope = 1, intercept = 0, size = .25) + 
   geom_errorbar( aes( ymin = deaths_coef_1, ymax = deaths_coef_3), linewidth = 1) +
   geom_errorbarh( aes( xmin = deaths_adj_1, xmax = deaths_adj_3), linewidth = 1) +
   geom_smooth( formula = y ~ x, method = 'lm', se = FALSE, fullrange = T, 
                linewidth = .5) +
   labs( y = 'HyADS excess deaths', x = 'GEOS-Chem Adjoint excess deaths') +
-  coord_cartesian( xlim = c( .01, max( h_adj$deaths_coef_3, h_adj$deaths_adj_3)),
-                   ylim = c( .01, max( h_adj$deaths_coef_3, h_adj$deaths_adj_3))) +
+  coord_cartesian( xlim = c( .01, max( h_adj[model == 'hyads']$deaths_coef_3 + 50, h_adj[model == 'hyads']$deaths_adj_3 + 50)),
+                   ylim = c( .01, max( h_adj[model == 'hyads']$deaths_coef_3 + 50, h_adj[model == 'hyads']$deaths_adj_3 + 50))) +
   # scale_x_log10( ) +
   # scale_y_log10( ) +
   scale_color_brewer( palette = 'Dark2',
@@ -272,7 +272,7 @@ perc.rank <- function(x) trunc(rank(x))/length(x)
 
 # how much deaths associated with 50% emissions?
 # merge facility names with facilities dataset
-load( 'data/units_coal_1997_2021.rda')
+load( 'data/data/units_coal_1997_2021.rda')
 units_all <- units_updated %>% as.data.table
 units_all[, FacID := gsub( '-.*$', '', ID) %>% as.integer()]
 facs_all <- units_all[, .( SOx = sum( SOx)),

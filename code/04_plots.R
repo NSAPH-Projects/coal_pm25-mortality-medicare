@@ -204,13 +204,13 @@ deaths_by_year_fac_statebinf <-
 deaths_by_fac_statebinf <- 
   deaths_and_units[, lapply( .SD, sum),
                    .SDcols = sum_cols,
-                   by = .( model, FacID, statebin_facility)]
+                   by = .( model, FacID, statebin_facility)][model == 'hyads']
 
 # deaths by statebin
 deaths_by_statebinf <- 
   deaths_and_units[, lapply( .SD, sum),
                    .SDcols = sum_cols,
-                   by = .( model, statebin_facility)]
+                   by = .( model, statebin_facility)][model == 'hyads']
 
 ## ================================================== ##
 # plot total deaths by year
@@ -241,7 +241,7 @@ deaths_year.gg <-
   scale_pattern_angle_discrete( labels = modnames,
                                 name = 'Risk Ratio') + 
   labs( y = 'Annual Excess Deaths (10,000)') +
-  # coord_cartesian( ylim = c( 0, NULL)) +
+  expand_limits( y = 6) +
   theme_bw() + 
   theme( axis.text = element_text( size = 12),
          axis.title.y = element_text( size = 16),
@@ -319,6 +319,8 @@ deaths_by_fac_year_statebin_lab <-
          by = c( 'statebin_facility', 'model'))
 
 # do some ordering
+deaths_by_fac_statebinf[, sum_region := sum( deaths_coef_2), by = .( FacID, model)]
+setorder( deaths_by_fac_statebinf, -sum_region)
 setorder( deaths_by_statebinf, -deaths_coef_2)
 deaths_by_statebinf[, statebin_lab := factor( statebin_lab,
                                               levels = c( statebin_lab))]
@@ -362,10 +364,17 @@ deaths_by_fac_year_statebin_lab[, yearbin := cut( year, c( 1999, 2005, 2011, 201
 # group some states together
 deaths_by_fac_year_statebin_lab[, lab := '']
 setorder( deaths_by_fac_statebinf, -deaths_coef_2)
+
+# setorder( deaths_by_fac_year_statebin_lab, -deaths_coef_2)
 deaths_by_fac_year_statebin_lab[, statebin_lab := factor( statebin_lab, levels = levels( deaths_by_statebinf$statebin_lab))]
 deaths_by_fac_year_statebin_lab[, FacID := factor( FacID, levels = rev( unique( deaths_by_fac_statebinf$FacID)))]
 deaths_by_fac_info.lab[, FacID := factor( FacID, levels = rev( unique( deaths_by_fac_statebinf$FacID)))]
 deaths_by_fac_info.lab[, statebin_lab := factor( statebin_lab, levels = levels( deaths_by_statebinf$statebin_lab))]
+
+2866, 1733
+sammis, monroe
+
+deaths_by_fac_year_statebin_lab[model == 'hyads' & FacID %in% c( 2866, 1733)]
 
 ## ================================================== ##
 # save some of the data 
@@ -425,7 +434,7 @@ ggsave( gg_combine, file = 'figures/annual_deaths_combine.png', width = 11, heig
 # plot it! 
 ## ================================================== ##
 gg_bardeaths <-
-  ggplot( deaths_by_fac_year_statebin_lab[model == 'hyads'], #[sample(1:7000, 500)],
+  ggplot( deaths_by_fac_year_statebin_lab[model == 'hyads'],# & FacID %in% c( 6113, 2866, 1733)], #[sample(1:7000, 500)],
           aes( y = deaths_coef_2, x = FacID, label = lab)) + 
   labs( y = 'Excess Deaths') +
   geom_col( aes( fill = yearbin), 
@@ -437,7 +446,7 @@ gg_bardeaths <-
                       begin = .2,
                       end = .9,
                       guide = guide_legend( ncol = 1)) +
-  geom_label_repel( data = deaths_by_fac_info.lab,#[statebin == 'Mid-Atlantic'],
+  geom_label_repel( data = deaths_by_fac_info.lab,
                     size = 7,
                     seed = 123,
                     force = 1,
@@ -446,13 +455,13 @@ gg_bardeaths <-
                     label.padding = unit(0.3, "lines"),
                     vjust = .5,
                     xlim = c( NA, 15),
-                    ylim = c( 500, 11000),
+                    ylim = c( 500, 9000),
                     segment.size = 0.2) +
   facet_grid( statebin_lab ~ ., switch = 'y',
               scales = 'free_y', space = 'free') +
   scale_y_continuous(expand = c(0,0),
                      breaks = seq( 0, 20000, 2500)) +
-  coord_flip( ylim = c( 0, 11000), clip = 'on') + #
+  coord_flip( ylim = c( 0, 9000), clip = 'on') + #
   # coord_cartesian( ) +   # This keeps the labels from disappearing
   theme_bw() + 
   theme( axis.text = element_text( size = 22),
@@ -462,8 +471,8 @@ gg_bardeaths <-
          axis.title.y = element_blank(),
          legend.direction = 'horizontal',
          legend.key.size = unit( 2, 'lines'),
-         legend.position = c( .9, .45),
-         legend.text = element_text( size = 20),
+         legend.position = c( .94, .93),
+         legend.text = element_text( size = 22),
          legend.title = element_blank(),
          panel.background = element_rect( fill = NA),
          panel.border = element_blank(),
@@ -480,7 +489,7 @@ gg_bardeaths <-
 # gg_bardeaths
 ggsave( gg_bardeaths,
         filename = 'figures/deaths_coal_pm25_unit_year.png',
-        height = 15, width = 20, unit = 'in')
+        height = 15, width = 22.7, unit = 'in')
 ggsave( gg_bardeaths,
         filename = 'figures/deaths_coal_pm25_unit_year.pdf',
         height = 15, width = 20, unit = 'in', device = cairo_pdf)
@@ -752,7 +761,7 @@ setnames( zips, 'zip', 'ZIP')
 hyads_file_loc <- '/n/dominici_nsaph_l3/Lab/projects/analytic/coal_exposure_pm25/zips_model.lm.cv_single_poly'
 
 #coordinate reference system projection string for spatial data
-p4s <- "+proj=lcc +lat_1=33 +lat_2=45 +lat_0=40 +lon_0=-97 +a=6370000 +b=6370000"
+p4s <-   '+proj=aea +lat_1=20 +lat_2=60 +lat_0=40 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m'
 
 # get the names of the gridded HyADS output files
 zips.files.yr <- list.files( hyads_file_loc,
@@ -814,7 +823,7 @@ spat.gg <- ggplot( zips.dat.sf[ zips.dat.sf$year %in% c( 1999, 2006, 2013, 2020)
         color = expression(paste( Coal, ' ', PM["2.5"], ', µg ', m^{"-3"}))) +
   scale_x_continuous( expand = c( 0, 0)) +
   scale_y_continuous( expand = c( 0, 0),
-                      breaks = 1:10) +
+                      breaks = seq( 0, 20, by = 2)) +
   facet_wrap( . ~ year, nrow = 1, strip.position = 'bottom') +
   theme_bw() + 
   theme( axis.text = element_blank(),
@@ -834,7 +843,7 @@ spat.gg <- ggplot( zips.dat.sf[ zips.dat.sf$year %in% c( 1999, 2006, 2013, 2020)
 hist.gg <- ggplot( zips.dat, 
                    aes( y = vals.out, x = year, group = year)) + 
   geom_boxplot( size = .5) +
-  scale_y_continuous( breaks = 0:10) +
+  scale_y_continuous( breaks = seq( 0, 20, by = 2)) +
   labs( y = expression( paste( Coal, ' ', PM["2.5"], ', µg', m^{"-3"}))) +
   theme_bw() + 
   theme( axis.text = element_text( size = 16),
