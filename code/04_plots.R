@@ -1078,7 +1078,7 @@ ggsave( 'figures/pollutant_maps.png', gg_pollutants,
 ## ================================================== ##
 # what percent of all medicare deaths?
 ## ================================================== ##
-sum_deaths_year <- read.fst( 'data/cache_data/total_deaths_by_state_year.fst', as.data.table = TRUE)
+sum_deaths_year <- read.fst( 'data/data/cache_data/total_deaths_by_state_year.fst', as.data.table = TRUE)
 
 medicare_deaths_by_year <- 
   sum_deaths_year[, .( deaths = sum( deaths.fill)), by = year]
@@ -1326,7 +1326,7 @@ deaths_by_year[model == 'hyads' & year < 2009,
 
 dim( deaths_by_fac_statebinf[deaths_coef_2 > 5000])
 dim( deaths_by_fac_statebinf[deaths_coef_2 > 1000])
-deaths_by_fac_statebinf[deaths_coef_2 > 500 & statebin_facility == 'West']
+deaths_by_fac_statebinf[deaths_coef_2 > 400 & statebin_facility == 'West']
 
 # how much deaths associated with 50% emissions?
 # merge facility names with facilities dataset
