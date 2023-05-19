@@ -347,6 +347,7 @@ hyads_zips_tot_state <-
   read.fst(  file.path(dir_data, "cache_data", 'hyads_pm25_annual.fst'),
              as.data.table = TRUE)
 summary( hyads_zips_tot_state[year == 1999])
+summary( hyads_zips_tot_state[year == 2020])
 summary( hyads_zips_tot_state[, Y1.adj])
 summary( hyads_zips_tot_state[, Y1])
 mean( hyads_zips_tot_state[, Y1.adj], na.rm = T)
