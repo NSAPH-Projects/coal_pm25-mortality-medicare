@@ -862,12 +862,13 @@ gg_combine <- cowplot::plot_grid(hist.gg,
                                  spat.gg,
                                  rel_heights = c( 1.1,1),
                                  labels = NULL, ncol = 1, 
-                                 align = 'v', axis = 'lr') 
+                                 align = 'v', axis = 'lr') +
+  theme(plot.background = element_rect(fill = "white", colour = NA))
 
 ggsave( 'figures/hyads_trends.pdf', gg_combine,
-        width = 14, height = 5, scale = 1.2, device = cairo_pdf)
+        width = 14, height = 4.75, scale = 1.2, device = cairo_pdf)
 ggsave( 'figures/hyads_trends.png', gg_combine,
-        width = 14, height = 5, scale = 1.2)
+        width = 14, height = 4.75, scale = 1.2)
 
 
 
