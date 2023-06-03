@@ -110,6 +110,54 @@ dat_annual_use_delt[ year > 2008, `:=` (Y1quantile = cut( Y1_delta,
                                                                     probs = 0:20/20, na.rm = TRUE),
                                                           labels = FALSE, include.lowest = TRUE)),
                      by = year]
+
+
+## ======================================================= ##
+# Figure S6: plots of death rates in areas with highest ventiles
+## ======================================================= ##
+large_zips <- unique( dat_annual_use_delt[ Y1quantile == 1 & time_count_2000 > 1000]$zip)
+length( large_zips)
+
+dat_annual_use_delt[, state_name := state.name[which( state.abb == statecode)]]
+
+labeller_state <- 
+  function( abb){
+    df.out <-  lapply( abb[,1], function(a) {
+      state.name[which( state.abb == a)] %>% data.frame
+    }) %>% rbindlist()
+    colnames( df.out) <- 'statecode'
+    return( df.out)
+  }
+
+gg_zips_rates <- 
+  ggplot( dat_annual_use_delt[zip %in% large_zips],
+          aes( y = death_rate, x = year, group = zip#, linewidth = time_count_2000
+          )) + 
+  geom_line( alpha = .1) + 
+  scale_size_continuous( 
+    name = 'Number of Medicare enrollees',
+    range = c( 0.05, 2)) +
+  facet_wrap( . ~ statecode, labeller = labeller_state) + 
+  labs( y = 'Annual death rate', x = 'Year',
+        linewidth = 'Medicare beneficiaries') +
+  expand_limits( y = 0) +
+  guides( linewidth = guide_legend(title.position="top")) +
+  theme_minimal() + 
+  theme( axis.title = element_text( size = 14),
+         axis.text = element_text( size = 12),
+         legend.direction = 'horizontal',
+         legend.position = c( .6, .08),
+         legend.title = element_text( size = 14),
+         legend.text = element_text( size = 12),
+         panel.grid.minor = element_blank(),
+         panel.grid.major.x = element_blank(),
+         strip.text = element_text( size = 14))
+ggsave( gg_zips_rates,
+        filename = 'figures/zip_death_rates.pdf',
+        height = 8, width = 10, unit = 'in', device = cairo_pdf)
+
+
+
 ## ======================================================= ##
 # linear models of rates!
 ## ======================================================= ##
@@ -163,6 +211,9 @@ slopes_sig <-
 slopes_over_time[, year_star := as.character( year)]
 slopes_over_time[ year %in% slopes_sig[p.val < 0.05]$year, year_star := paste0( year, '*')]
 
+## ======================================================= ##
+# Figure S7: linear models of rates!
+## ======================================================= ##
 gg_first_diffs <- 
   ggplot( slopes_over_time,
           aes( x = quant, y = Y1_delt_slope * 10000)) + 
@@ -185,137 +236,4 @@ gg_first_diffs
 ggsave( gg_first_diffs,
         filename = 'figures/first_diffs_since_2000.pdf',
         height = 5, width = 10, unit = 'in', device = cairo_pdf)
-
-
-## ======================================================= ##
-# plots of death rates in areas with highest ventiles
-## ======================================================= ##
-large_zips <- unique( dat_annual_use_delt[ Y1quantile == 1 & time_count_2000 > 1000]$zip)
-length( large_zips)
-
-dat_annual_use_delt[, state_name := state.name[which( state.abb == statecode)]]
-
-labeller_state <- 
-  function( abb){
-    df.out <-  lapply( abb[,1], function(a) {
-      state.name[which( state.abb == a)] %>% data.frame
-    }) %>% rbindlist()
-    colnames( df.out) <- 'statecode'
-    return( df.out)
-  }
-
-gg_zips_rates <- 
-  ggplot( dat_annual_use_delt[zip %in% large_zips],
-          aes( y = death_rate, x = year, group = zip#, linewidth = time_count_2000
-          )) + 
-  geom_line( alpha = .1) + 
-  scale_size_continuous( 
-    name = 'Number of Medicare enrollees',
-    range = c( 0.05, 2)) +
-  facet_wrap( . ~ statecode, labeller = labeller_state) + 
-  labs( y = 'Annual death rate', x = 'Year',
-        linewidth = 'Medicare beneficiaries') +
-  expand_limits( y = 0) +
-  guides( linewidth = guide_legend(title.position="top")) +
-  theme_minimal() + 
-  theme( axis.title = element_text( size = 14),
-         axis.text = element_text( size = 12),
-         legend.direction = 'horizontal',
-         legend.position = c( .6, .08),
-         legend.title = element_text( size = 14),
-         legend.text = element_text( size = 12),
-         panel.grid.minor = element_blank(),
-         panel.grid.major.x = element_blank(),
-         strip.text = element_text( size = 14))
-ggsave( gg_zips_rates,
-        filename = 'figures/zip_death_rates.pdf',
-        height = 8, width = 10, unit = 'in', device = cairo_pdf)
-
-
-## ======================================================= ##
-# a slightly different approach—averages from 2000 - 2004 and 2012-2016
-## ======================================================= ##
-
-
-dat_annual_early <- 
-  dat_annual_hy[year %in% 2000:2004, 
-                .( death_rate_early = sum( dead) / sum( time_count), 
-                   death_rate_mean_early = mean( death_rate), 
-                   pm25_ensemble_early = mean( pm25_ensemble), 
-                   Y1_early = mean( Y1)),
-                by = 'zip']
-dat_annual_late <- 
-  dat_annual_hy[year %in% 2012:2016, 
-                .( death_rate_late = sum( dead) / sum( time_count), 
-                   death_rate_mean_late = mean( death_rate), 
-                   pm25_ensemble_late = mean( pm25_ensemble), 
-                   Y1_late = mean( Y1)),
-                by = 'zip']
-
-dat_annual_early[, `:=` (Y1quantile = cut(Y1_early, quantile(Y1_early, probs = 0:20/20),
-                                          labels = FALSE, include.lowest = TRUE),
-                         PMquantile = cut(pm25_ensemble_early, quantile(pm25_ensemble_early, 
-                                                                        probs = 0:20/20, na.rm = TRUE),
-                                          labels = FALSE, include.lowest = TRUE))]
-
-dat_annual_avgs <- 
-  merge( dat_annual_early,
-         dat_annual_late, by = 'zip') %>%
-  merge( )
-
-# calculate differences in exposure & rates from 2000
-dat_annual_avgs[, `:=` ( death_rate_delta = death_rate_late - death_rate_early,
-                         death_rate_mean_delta = death_rate_mean_late - death_rate_mean_early,
-                         pm25_ensemble_delta = pm25_ensemble_late - pm25_ensemble_early,
-                         Y1_delta = Y1_late - Y1_early)]
-
-# merge year 2000 data with original dataset
-dat_annual_avgs_delt <- 
-  merge( dat_annual_hy[year == 2000],
-         dat_annual_avgs,
-         by = 'zip')
-
-# calculate average change at different quantiles of early exposure
-dat_annual_avgs_quant <- 
-  dat_annual_avgs[, .( delta_death = mean( death_rate_late - death_rate_early),
-                       delta_Y1 = mean( Y1_late - Y1_early)
-  ), by = Y1quantile]
-ggplot( dat_annual_avgs_quant,
-        aes( x = delta_Y1, y = delta_death)) + 
-  geom_point()
-
-dat_annual_avgs_quant_PM <- 
-  dat_annual_avgs[, .( delta_death = mean( death_rate_late - death_rate_early),
-                       delta_PM = mean( pm25_ensemble_late - pm25_ensemble_early, na.rm = T)
-  ), by = PMquantile]
-ggplot( dat_annual_avgs_quant_PM,
-        aes( x = delta_PM, y = delta_death)) + 
-  geom_point()
-
-#evidence of this being driven by space and not time?
-# if average of ∆death rate is ~-0.007, would it be possible to 
-# see the influence of a RR of 1.5% from coal PM?
-# average baseline death rate is 0.05 death/enrolled
-# average change in death rate is 0.007 death/enrolled
-# so, we're looking at changes of 0.007 / 0.05 = 14%, an order of 
-# magnitude larger than the change expected from coal PM
-## ======================================================= ##
-# plots!
-## ======================================================= ##
-
-ggplot( dat_annual_use_delt[year %in% c( 2005, 2010, 2016)],
-        aes( x = Y1_delta,
-             y = death_rate_delta)) + 
-  geom_point( alpha = .1) + 
-  geom_smooth() +
-  facet_wrap( . ~ year) + 
-  theme_bw()
-
-ggplot( dat_annual_avgs,
-        aes( x = Y1_delta,
-             y = death_rate_delta)) + 
-  geom_point( alpha = .1) + 
-  geom_smooth() +
-  theme_bw()
-
 
