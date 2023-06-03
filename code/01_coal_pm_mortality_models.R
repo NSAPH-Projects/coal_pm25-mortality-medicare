@@ -289,10 +289,6 @@ poisson_coefs <-
 # save the coefficients
 write.csv( poisson_coefs, file = paste0(dir_out, "poisson_model_coefs.csv"))
 
-# save the summaries
-# save(Poisson, file = paste0(dir_out, "Poisson_pm25.RData"))
-# save(Poisson_hy, file = paste0(dir_out, "Poisson_hyads.RData"))
-
 ## ==================================================== ##
 ##  table of zip code characteristics
 ## ==================================================== ##
@@ -330,12 +326,6 @@ dat_annual_black <-
   dat_annual_use[  race == 2, sum( time_count)] / all_count
 dat_annual_dual <- 
   dat_annual_use[  dual == 1, sum( time_count)] / all_count
-
-
-
-## ==================================================== ##
-## check out biggest impacting facilities
-## ==================================================== ##
 
 
 
