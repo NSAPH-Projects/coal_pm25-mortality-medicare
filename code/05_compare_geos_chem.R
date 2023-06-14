@@ -66,7 +66,7 @@ read.adj <- function( base.dir = 'data/data/adjoint_results'){
 }
 
 ## ===============================================
-#  Read in the Irene geoschem data
+#  Read in the geoschem data
 ## ===============================================
 irene_adj <- read.adj( )[state == 'US']
 
@@ -102,7 +102,7 @@ irene_adj_pop_fac <- merge( irene_adj_pop, facility_info, by = 'uID')
 
 
 ## ===============================================
-#  Do the deaths by units calculation
+#  deaths by units calculation
 ## ===============================================
 tot_deaths_by_state_year <- read.fst( 'data/data/cache_data/total_deaths_by_state_year.fst',
                                       as.data.table = T)
@@ -180,6 +180,9 @@ h_adj <- merge( irene_adj_fac,
                 deaths_by_year_fac_statebinf[model %in% c( 'hyads', 'hyads_raw')], 
                 by = c( 'FacID', 'year'))
 
+## ===============================================
+#  Compare hyads & geoschem
+## ===============================================
 # calculate regressions
 h_adj_lm <- h_adj[, .( N = .N,
                        int = coef( summary( lm( deaths_coef_2 ~ deaths_adj_2)))['(Intercept)','Estimate'],
@@ -230,7 +233,7 @@ h_adj[, lapply( .SD, sum),
       by = .( year, model)]
 
 ## ===============================================
-#  facility deaths comparisons
+#  Figure S9: facility deaths comparisons
 ## ===============================================
 geos_chem_eval_plot <- 
   ggplot( h_adj[model == 'hyads'], 
@@ -266,7 +269,7 @@ ggsave( 'figures/geos_chem_eval_region_deaths.png',
         unit = 'in', scale = 1.75)
 
 ## ===============================================
-#  ranks by GEOS-Chem & hyads
+#  Figure S10: ranks by GEOS-Chem & hyads
 ## ===============================================
 perc.rank <- function(x) trunc(rank(x))/length(x)
 
@@ -336,12 +339,6 @@ pct_emiss_death.gg <-
 ggsave( pct_emiss_death.gg,
         filename = 'figures/deaths_emiss_adj_pct.png',
         height = 7, width = 15, unit = 'in')
-
-## ===============================================
-#  evaluate hyads & geos-Chem
-## ===============================================
-
-
 
 
 
