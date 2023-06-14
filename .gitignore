@@ -5,7 +5,6 @@
 data/cache_data/*
 data/data/cache_data/*
 data/adjoint_results/cache_data/*
-data/data/*.csv
 data/data/*.rda
 data/data/zcta_500k/*
 results/*.csv
