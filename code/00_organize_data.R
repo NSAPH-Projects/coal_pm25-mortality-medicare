@@ -521,13 +521,14 @@ gg_region_adj <-
          legend.text.align = 0,
          legend.title = element_blank(),
          plot.background = element_rect( color = NULL),
+         plot.margin = margin(.5,.5,.5,.5, "cm"),
          strip.placement = "outside",
          strip.text = element_text( size = 18),
          strip.text.x = element_text( size = 18))
 # gg_region_adj
 
 ggsave( 'figures/hyads_sulfate_adjustments_rel.png',
-        gg_region_adj, height = 5.3, width = 12, units = 'in', scale = 1.25)
+        gg_region_adj, height = 6, width = 12, units = 'in', scale = 1.25)
 
 # save the adjustment factors
 scatter.dt_reg <- dcast( scatter.dt_reg,
