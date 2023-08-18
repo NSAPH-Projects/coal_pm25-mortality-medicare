@@ -794,7 +794,7 @@ zips.dat[, .( mean = mean( vals.out, na.rm = TRUE),
 # merge with spatial data
 zips.dat.sf <- merge( zips.dat,
                       zips,
-                      by.x = 'ZIP', by.y = 'ZIP')
+                      by.x = 'ZIP', by.y = 'zip')
 
 # get USA dataset
 states48 <- c( state.name[!(state.name %in% c( 'Alaska', 'Hawaii'))],
